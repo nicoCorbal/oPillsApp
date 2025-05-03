@@ -123,9 +123,9 @@ export const Calendar: React.FC<CalendarProps> = ({ onDateSelect, selectedDate }
 const styles = StyleSheet.create({
   container: {
     backgroundColor: 'black',
-    paddingTop: 10,
-    paddingBottom: 10,
-    height: 85,
+    paddingTop: 15,
+    paddingBottom: 15,
+    height: 120,
   },
   header: {
     alignItems: 'center',
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   },
   monthNumber: {
     color: 'white',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: 'bold',
   },
   daysContainer: {
@@ -152,38 +152,38 @@ const styles = StyleSheet.create({
   },
   dayColumn: {
     alignItems: 'center',
-    width: 35,
-    paddingVertical: 2,
+    width: 40,
+    paddingVertical: 5,
   },
   selectedDayColumn: {
     borderRadius: 4,
   },
   todayColumn: {
-    backgroundColor: 'rgba(100, 181, 246, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 4,
   },
   dayNumber: {
     color: 'white',
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: '500',
   },
   selectedDayNumber: {
     fontWeight: 'bold',
   },
   todayDayNumber: {
-    color: '#64B5F6',
+    color: 'white',
     fontWeight: 'bold',
   },
   dayLetter: {
     color: 'white',
-    fontSize: 14,
-    marginTop: 2,
+    fontSize: 16,
+    marginTop: 4,
   },
   selectedDayLetter: {
     fontWeight: 'bold',
   },
   todayDayLetter: {
-    color: '#64B5F6',
+    color: 'white',
     fontWeight: 'bold',
   },
   selectedLine: {

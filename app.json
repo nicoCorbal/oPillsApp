@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "MiApp",
-    "slug": "MiApp",
+    "name": "oPills",
+    "slug": "oPills",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "miapp",
+    "scheme": "opills",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -11,11 +11,14 @@ import {
   ScrollView,
   Keyboard,
   TouchableWithoutFeedback,
-  Image
+  Image,
+  Animated,
+  PanResponder,
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Calendar } from '../components/Calendar';
-import { MedicationList, Medication } from '../components/MedicationList';
+import { Medication } from '../components/MedicationList';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MedicationsByDate {
@@ -69,7 +72,10 @@ export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [medications, setMedications] = useState<MedicationsByDate>(INITIAL_MEDICATIONS);
+  const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAddOptions, setShowAddOptions] = useState(false);
+  const [inputText, setInputText] = useState('');
   const [newMedication, setNewMedication] = useState({
     name: '',
     dose: '',
@@ -156,7 +162,8 @@ export default function MainScreen() {
   };
 
   const handleMedicationPress = (medication: Medication) => {
-    // Implementar vista detallada del medicamento
+    // Mostrar vista detallada del medicamento
+    setSelectedMedication(medication);
   };
 
   const handleMicPress = () => {
@@ -164,58 +171,239 @@ export default function MainScreen() {
     console.log('Mic pressed');
   };
 
+  const handleAddOptionPress = (option: string) => {
+    setShowAddOptions(false);
+    if (option === 'medication') {
+      setShowAddModal(true);
+    } else if (option === 'camera') {
+      console.log('Abrir cámara');
+      // Aquí iría la lógica para abrir la cámara
+    } else if (option === 'gallery') {
+      console.log('Abrir galería');
+      // Aquí iría la lógica para abrir la galería
+    }
+  };
+  
+  // Función para eliminar un medicamento
+  const handleDeleteMedication = (medicationId: string, time: string) => {
+    Alert.alert(
+      "Eliminar medicamento",
+      "¿Estás seguro de que quieres eliminar este medicamento?",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel"
+        },
+        { 
+          text: "Eliminar", 
+          onPress: () => {
+            const dateKey = getDateKey(selectedDate);
+            setMedications(prev => {
+              const updatedMedications = {...prev};
+              const timeSlot = [...(updatedMedications[dateKey][time] || [])];
+              const filteredMedications = timeSlot.filter(med => med.id !== medicationId);
+              
+              if (filteredMedications.length === 0) {
+                // Si no quedan medicamentos en este horario, eliminar el horario
+                const updatedTimeSlots = {...updatedMedications[dateKey]};
+                delete updatedTimeSlots[time];
+                updatedMedications[dateKey] = updatedTimeSlots;
+              } else {
+                // Actualizar los medicamentos para este horario
+                updatedMedications[dateKey][time] = filteredMedications;
+              }
+              
+              return updatedMedications;
+            });
+          },
+          style: "destructive"
+        }
+      ]
+    );
+  };
+  
+  // Componente para un medicamento con gesto de deslizamiento
+  const SwipeableMedicationItem = ({ medication, index, time }: { medication: Medication, index: number, time: string }) => {
+    const pan = useRef(new Animated.ValueXY()).current;
+    const swipeThreshold = -80; // Umbral para considerar un deslizamiento como borrado
+    
+    const panResponder = PanResponder.create({
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderMove: (_, gestureState) => {
+        // Solo permitir deslizamiento hacia la izquierda
+        if (gestureState.dx < 0) {
+          Animated.event([null, { dx: pan.x }], { useNativeDriver: false })(_, gestureState);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dx < swipeThreshold) {
+          // Deslizamiento completo - mostrar opción de eliminar
+          Animated.timing(pan, {
+            toValue: { x: -100, y: 0 },
+            duration: 200,
+            useNativeDriver: false
+          }).start();
+          handleDeleteMedication(medication.id, time);
+        } else {
+          // Volver a la posición original
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            friction: 5,
+            useNativeDriver: false
+          }).start();
+        }
+      }
+    });
+    
+    return (
+      <Animated.View 
+        style={[{ transform: [{ translateX: pan.x }] }]}
+        {...panResponder.panHandlers}
+      >
+        <TouchableOpacity
+          style={[styles.medicationItem, index === 0 && styles.medicationItemSelected]}
+          onPress={() => setSelectedMedication(medication)}
+        >
+          <View style={[styles.medicationIcon, index === 0 ? styles.medicationIconSelected : {}]}>
+            <Ionicons name="medical-outline" size={18} color={index === 0 ? "white" : "black"} />
+          </View>
+          <Text style={[styles.medicationName, index === 0 && styles.medicationNameSelected]}>
+            {medication.name} <Text style={[styles.medicationDose, index === 0 && styles.medicationDoseSelected]}>{medication.dose}</Text>
+          </Text>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
   return (
-    <KeyboardAvoidingView 
-      style={[styles.container, { paddingTop: insets.top }]} 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.content}>
+        <View style={[styles.container, { paddingTop: insets.top }]}>
           <View style={styles.calendarContainer}>
             <Calendar 
               onDateSelect={handleDateSelect}
               selectedDate={selectedDate}
             />
           </View>
-          
-          <ScrollView style={styles.medicationsContainer}>
-            {getMedicationsForSelectedDate().length > 0 ? (
-              getMedicationsForSelectedDate().map(({ time, medications: meds }) => (
-                <View key={time} style={styles.timeGroup}>
-                  <Text style={styles.timeText}>{time}</Text>
-                  <MedicationList 
-                    medications={meds}
-                    onMedicationPress={handleMedicationPress}
-                  />
-                </View>
-              ))
-            ) : (
+
+          <View style={styles.medicationsContainer}>
+            {getMedicationsForSelectedDate().length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateText}>No hay medicamentos para este día</Text>
               </View>
+            ) : (
+              <ScrollView>
+                {getMedicationsForSelectedDate().map(({ time, medications }) => (
+                  <View key={time} style={styles.timeGroup}>
+                    <View style={styles.medicationCard}>
+                      <Text style={styles.timeText}>{time}</Text>
+                      
+                      {medications.map((med, index) => (
+                        <SwipeableMedicationItem 
+                          key={med.id}
+                          medication={med}
+                          index={index}
+                          time={time}
+                        />
+                      ))}
+                      
+                      <View style={styles.imageContainer}>
+                        <Image
+                          source={require('../assets/images/paracetamol.png')}
+                          style={styles.medicineImage}
+                          resizeMode="contain"
+                        />
+                        <View style={styles.dotContainer}>
+                          <View style={[styles.dot, styles.activeDot]} />
+                          <View style={styles.dot} />
+                          <View style={styles.dot} />
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
             )}
-          </ScrollView>
+          </View>
 
           {!isKeyboardVisible && (
-            <View style={styles.inputContainer}>
+            <View style={styles.inputContainerCustom}>
               <TouchableOpacity 
-                style={styles.addButton}
-                onPress={() => setShowAddModal(true)}
+                style={styles.addButtonCustom}
+                onPress={() => setShowAddOptions(true)}
+                accessibilityLabel="Añadir medicamento, foto o elemento de la galería"
+                accessibilityHint="Pulsa para añadir un nuevo elemento"
               >
                 <Ionicons name="add" size={24} color="white" />
               </TouchableOpacity>
               <TextInput
-                style={styles.input}
+                style={styles.inputCustom}
                 placeholder="Type here...."
-                placeholderTextColor="#666"
-                onFocus={() => setShowAddModal(true)}
+                placeholderTextColor="#999"
+                value={inputText}
+                onChangeText={setInputText}
+                accessibilityLabel="Campo de texto para instrucciones"
+                editable={true}
+                autoCapitalize="none"
+                onSubmitEditing={() => {
+                  if (inputText.trim()) {
+                    console.log('Mensaje enviado:', inputText);
+                    setInputText('');
+                  }
+                }}
               />
               <TouchableOpacity 
-                style={styles.micButton}
+                style={styles.micButtonCustom}
                 onPress={handleMicPress}
+                accessibilityLabel="Activar micrófono"
+                accessibilityHint="Pulsa para dar instrucciones por voz"
               >
                 <Ionicons name="mic" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Opciones del botón + */}
+          {showAddOptions && (
+            <View style={styles.addOptionsContainer}>
+              <TouchableOpacity 
+                style={styles.addOptionItem}
+                onPress={() => handleAddOptionPress('medication')}
+              >
+                <View style={styles.addOptionIcon}>
+                  <Ionicons name="medical" size={22} color="white" />
+                </View>
+                <Text style={styles.addOptionText}>Medicamento</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.addOptionItem}
+                onPress={() => handleAddOptionPress('camera')}
+              >
+                <View style={styles.addOptionIcon}>
+                  <Ionicons name="camera" size={22} color="white" />
+                </View>
+                <Text style={styles.addOptionText}>Cámara</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.addOptionItem}
+                onPress={() => handleAddOptionPress('gallery')}
+              >
+                <View style={styles.addOptionIcon}>
+                  <Ionicons name="images" size={22} color="white" />
+                </View>
+                <Text style={styles.addOptionText}>Galería</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.addOptionItem, styles.cancelOption]}
+                onPress={() => setShowAddOptions(false)}
+              >
+                <Text style={styles.cancelOptionText}>Cancelar</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -225,6 +413,8 @@ export default function MainScreen() {
             animationType="slide"
             transparent={true}
             onRequestClose={() => setShowAddModal(false)}
+            accessibilityViewIsModal={true}
+            accessibilityLabel="Añadir nuevo elemento"
           >
             <KeyboardAvoidingView 
               style={styles.modalContainer}
@@ -234,10 +424,25 @@ export default function MainScreen() {
               <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <View style={styles.modalContent}>
                   <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Añadir Medicamento</Text>
+                    <Text style={styles.modalTitle}>Añadir Elemento</Text>
+                    <View style={styles.modalTabsContainer}>
+                      <TouchableOpacity style={[styles.modalTab, styles.modalTabActive]}>
+                        <Ionicons name="medical" size={22} color="black" />
+                        <Text style={styles.modalTabText}>Medicamento</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.modalTab}>
+                        <Ionicons name="image" size={22} color="#666" />
+                        <Text style={[styles.modalTabText, {color: '#666'}]}>Foto</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.modalTab}>
+                        <Ionicons name="folder" size={22} color="#666" />
+                        <Text style={[styles.modalTabText, {color: '#666'}]}>Galería</Text>
+                      </TouchableOpacity>
+                    </View>
                     <TouchableOpacity 
                       onPress={() => setShowAddModal(false)}
                       style={styles.closeButton}
+                      accessibilityLabel="Cerrar"
                     >
                       <Ionicons name="close" size={24} color="black" />
                     </TouchableOpacity>
@@ -281,6 +486,22 @@ export default function MainScreen() {
               </TouchableWithoutFeedback>
             </KeyboardAvoidingView>
           </Modal>
+
+          {/* Tarjeta negra de detalle */}
+          {selectedMedication && (
+            <View style={styles.detailOverlay}>
+              <View style={styles.detailCard}>
+                <Text style={styles.detailTitle}>{selectedMedication.name}</Text>
+                <Text style={styles.detailDescription}>{selectedMedication.description || 'No hay descripción disponible.'}</Text>
+                <TouchableOpacity style={styles.soundButtonCustom}>
+                  <Ionicons name="volume-high" size={24} color="white" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.closeDetailButton} onPress={() => setSelectedMedication(null)}>
+                  <Ionicons name="close" size={22} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -292,15 +513,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'black',
   },
-  content: {
-    flex: 1,
-    backgroundColor: 'white',
-    borderRadius: 30,
-    marginTop: 10,
-  },
   calendarContainer: {
-    height: 85,
+    height: 120,
     backgroundColor: 'black',
+    marginBottom: 10,
   },
   medicationsContainer: {
     flex: 1,
@@ -309,15 +525,98 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 30,
     paddingHorizontal: 20,
     paddingTop: 20,
+    paddingBottom: 100, // Espacio para la barra inferior
+    marginTop: 0, // Ya no necesitamos el margen negativo
   },
   timeGroup: {
     marginBottom: 20,
   },
+  medicationCard: {
+    backgroundColor: 'white',
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  medicationItemSelected: {
+    backgroundColor: '#333',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
   timeText: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 10,
+    textAlign: 'right',
+    marginBottom: 15,
     color: 'black',
+  },
+  medicationItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    marginVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+  },
+  medicationIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  medicationIconSelected: {
+    backgroundColor: 'white',
+  },
+  medicationName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#222',
+  },
+  medicationNameSelected: {
+    color: 'white',
+    fontWeight: '600',
+  },
+  medicationDose: {
+    fontSize: 14,
+    color: '#666',
+    fontWeight: 'normal',
+  },
+  medicationDoseSelected: {
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  imageContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  medicineImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+  },
+  dotContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 15,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ddd',
+    marginHorizontal: 4,
+  },
+  activeDot: {
+    backgroundColor: '#333',
   },
   emptyState: {
     flex: 1,
@@ -341,6 +640,123 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  inputContainerCustom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'black',
+    padding: 10,
+    borderRadius: 25,
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    borderWidth: 1,
+    borderColor: '#333',
+  },
+  addOptionsContainer: {
+    position: 'absolute',
+    bottom: 80,
+    left: 20,
+    right: 20,
+    backgroundColor: '#333',
+    borderRadius: 15,
+    padding: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  addOptionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#444',
+  },
+  addOptionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#555',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  addOptionText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  cancelOption: {
+    justifyContent: 'center',
+    borderBottomWidth: 0,
+    paddingVertical: 15,
+  },
+  cancelOptionText: {
+    color: '#999',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+    width: '100%',
+  },
+  addButtonCustom: {
+    marginRight: 10,
+    padding: 5,
+  },
+  inputCustom: {
+    flex: 1,
+    color: 'white',
+    fontSize: 16,
+    height: 40,
+  },
+  micButtonCustom: {
+    marginLeft: 10,
+    padding: 5,
+  },
+  detailOverlay: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-end',
+    padding: 20,
+  },
+  detailCard: {
+    backgroundColor: 'black',
+    borderRadius: 15,
+    padding: 20,
+    paddingBottom: 50,
+  },
+  detailTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 10,
+  },
+  detailDescription: {
+    fontSize: 16,
+    color: 'white',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  soundButtonCustom: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    backgroundColor: 'transparent',
+    padding: 8,
+    borderRadius: 20,
+  },
+  closeDetailButton: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    padding: 5,
   },
   addButton: {
     marginRight: 10,
@@ -366,17 +782,42 @@ const styles = StyleSheet.create({
     maxHeight: '80%',
   },
   modalHeader: {
+    marginBottom: 20,
+  },
+  modalTabsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: 15,
+    marginBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 10,
+  },
+  modalTab: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+  },
+  modalTabActive: {
+    backgroundColor: '#f0f0f0',
+  },
+  modalTabText: {
+    marginLeft: 5,
+    fontSize: 14,
+    fontWeight: '500',
   },
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
+    textAlign: 'left',
   },
   closeButton: {
     padding: 5,
+    position: 'absolute',
+    top: 0,
+    right: 0,
   },
   modalScroll: {
     maxHeight: '100%',
@@ -389,7 +830,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   addMedicationButton: {
-    backgroundColor: '#64B5F6',
+    backgroundColor: '#333',
     borderRadius: 15,
     padding: 15,
     alignItems: 'center',
