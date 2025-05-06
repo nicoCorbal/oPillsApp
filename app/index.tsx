@@ -46,8 +46,20 @@ const INITIAL_MEDICATIONS: MedicationsByDate = {
           'Tomar con alimentos',
           'No exceder la dosis recomendada',
           'Consultar con el médico si los síntomas persisten'
-        ],
-        image: 'path_to_image'
+        ]
+      },
+      {
+        id: '3',
+        name: 'Omeprazol',
+        dose: '20mg',
+        time: '09:00',
+        image: require('../assets/images/omeprazol.jpeg'),
+        description: 'Inhibidor de la bomba de protones utilizado para reducir la producción de ácido en el estómago.',
+        instructions: [
+          'Tomar en ayunas',
+          'Preferiblemente por la mañana',
+          'No masticar la cápsula'
+        ]
       }
     ],
     '15:30': [
@@ -56,15 +68,61 @@ const INITIAL_MEDICATIONS: MedicationsByDate = {
         name: 'Paracetamol',
         dose: '1g',
         time: '15:30',
+        image: require('../assets/images/paracetamol.png'),
         description: 'Analgésico y antipirético utilizado para aliviar el dolor y reducir la fiebre.',
         instructions: [
           'Tomar con agua',
           'No tomar con alcohol',
           'Máximo 4 gramos al día'
-        ],
-        image: 'path_to_image'
+        ]
+      },
+      {
+        id: '4',
+        name: 'Amoxicilina',
+        dose: '500mg',
+        time: '15:30',
+        description: 'Antibiótico de la familia de las penicilinas.',
+        instructions: [
+          'Tomar cada 8 horas',
+          'Completar el tratamiento',
+          'Tomar con o sin alimentos'
+        ]
       }
     ]
+  }
+};
+
+// Función que se usará para crear medicamentos (preparada para el backend)
+const createMedication = async (medicationData: {
+  name: string;
+  dose: string;
+  time: string;
+  image?: string;
+  description?: string;
+  instructions?: string[];
+}) => {
+  try {
+    // Aquí irá la llamada al backend
+    // const response = await fetch('tu-api/medications', {
+    //   method: 'POST',
+    //   headers: {
+    //     'Content-Type': 'application/json',
+    //   },
+    //   body: JSON.stringify(medicationData),
+    // });
+    // const data = await response.json();
+    
+    // Por ahora, simulamos la respuesta del backend
+    // const newMedication: Medication = {
+    //   id: Date.now().toString(),
+    //   ...medicationData,
+    //   image: medicationData.image ? require(`../assets/images/${medicationData.image}`) : undefined
+    // };
+
+    // return newMedication;
+  } catch (error) {
+    console.error('Error al crear el medicamento:', error);
+    throw error;
   }
 };
 
@@ -82,7 +140,8 @@ export default function MainScreen() {
     time: '15:30',
   });
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImages, setSelectedImages] = useState<{[key: string]: any}>({});
+  const [selectedMedicationIds, setSelectedMedicationIds] = useState<{[key: string]: string | null}>({});
 
   React.useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -132,32 +191,39 @@ export default function MainScreen() {
     setSelectedDate(date);
   };
 
-  const handleAddMedication = () => {
+  const handleAddMedication = async () => {
     if (newMedication.name && newMedication.dose) {
-      const dateKey = getDateKey(selectedDate);
-      const newMed: Medication = {
-        id: Date.now().toString(),
-        ...newMedication,
-        instructions: ['Tomar según indicaciones del médico'],
-        image: selectedImage || 'default_image_path'
-      };
+      try {
+        const newMed = await createMedication({
+          ...newMedication,
+          instructions: ['Tomar según indicaciones del médico'],
+          image: selectedImages[newMedication.time] || undefined
+        });
 
-      setMedications(prev => {
-        const currentDateMedications = prev[dateKey] || {};
-        const currentTimeMedications = currentDateMedications[newMedication.time] || [];
-        
-        return {
+        const dateKey = getDateKey(selectedDate);
+        setMedications(prev => {
+          const currentDateMedications = prev[dateKey] || {};
+          const currentTimeMedications = currentDateMedications[newMedication.time] || [];
+          
+          return {
+            ...prev,
+            [dateKey]: {
+              ...currentDateMedications,
+              [newMedication.time]: [...currentTimeMedications, newMed]
+            }
+          };
+        });
+
+        setShowAddModal(false);
+        setNewMedication({ name: '', dose: '', time: '15:30' });
+        setSelectedImages(prev => ({
           ...prev,
-          [dateKey]: {
-            ...currentDateMedications,
-            [newMedication.time]: [...currentTimeMedications, newMed]
-          }
-        };
-      });
-
-      setShowAddModal(false);
-      setNewMedication({ name: '', dose: '', time: '15:30' });
-      setSelectedImage(null);
+          [newMedication.time]: null
+        }));
+      } catch (error) {
+        console.error('Error al añadir el medicamento:', error);
+        // Aquí podrías mostrar un mensaje de error al usuario
+      }
     }
   };
 
@@ -223,21 +289,31 @@ export default function MainScreen() {
   };
   
   // Componente para un medicamento con gesto de deslizamiento
-  const SwipeableMedicationItem = ({ medication, index, time }: { medication: Medication, index: number, time: string }) => {
+  const SwipeableMedicationItem = ({ 
+    medication, 
+    index, 
+    time,
+    selectedMedicationId,
+    onSelectMedication 
+  }: { 
+    medication: Medication, 
+    index: number, 
+    time: string,
+    selectedMedicationId: string | null,
+    onSelectMedication: (id: string) => void 
+  }) => {
     const pan = useRef(new Animated.ValueXY()).current;
-    const swipeThreshold = -80; // Umbral para considerar un deslizamiento como borrado
+    const swipeThreshold = -80;
     
     const panResponder = PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
       onPanResponderMove: (_, gestureState) => {
-        // Solo permitir deslizamiento hacia la izquierda
         if (gestureState.dx < 0) {
           Animated.event([null, { dx: pan.x }], { useNativeDriver: false })(_, gestureState);
         }
       },
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dx < swipeThreshold) {
-          // Deslizamiento completo - mostrar opción de eliminar
           Animated.timing(pan, {
             toValue: { x: -100, y: 0 },
             duration: 200,
@@ -245,7 +321,6 @@ export default function MainScreen() {
           }).start();
           handleDeleteMedication(medication.id, time);
         } else {
-          // Volver a la posición original
           Animated.spring(pan, {
             toValue: { x: 0, y: 0 },
             friction: 5,
@@ -255,20 +330,33 @@ export default function MainScreen() {
       }
     });
     
+    const handlePress = () => {
+      onSelectMedication(medication.id);
+      // Actualizar la imagen mostrada para este grupo de tiempo
+      const imageSource = medication.image || null;
+      setSelectedImages(prev => ({
+        ...prev,
+        [time]: imageSource
+      }));
+    };
+    
+    const isSelected = selectedMedicationId === medication.id;
+    
     return (
       <Animated.View 
         style={[{ transform: [{ translateX: pan.x }] }]}
         {...panResponder.panHandlers}
       >
         <TouchableOpacity
-          style={[styles.medicationItem, index === 0 && styles.medicationItemSelected]}
-          onPress={() => setSelectedMedication(medication)}
+          style={[styles.medicationItem, isSelected && styles.medicationItemSelected]}
+          onPress={handlePress}
+          activeOpacity={0.7}
         >
-          <View style={[styles.medicationIcon, index === 0 ? styles.medicationIconSelected : {}]}>
-            <Ionicons name="medical-outline" size={18} color={index === 0 ? "white" : "black"} />
+          <View style={[styles.medicationIcon, isSelected ? styles.medicationIconSelected : {}]}>
+            <Ionicons name="medical-outline" size={18} color={isSelected ? "white" : "black"} />
           </View>
-          <Text style={[styles.medicationName, index === 0 && styles.medicationNameSelected]}>
-            {medication.name} <Text style={[styles.medicationDose, index === 0 && styles.medicationDoseSelected]}>{medication.dose}</Text>
+          <Text style={[styles.medicationName, isSelected && styles.medicationNameSelected]}>
+            {medication.name} <Text style={[styles.medicationDose, isSelected && styles.medicationDoseSelected]}>{medication.dose}</Text>
           </Text>
         </TouchableOpacity>
       </Animated.View>
@@ -307,20 +395,27 @@ export default function MainScreen() {
                           medication={med}
                           index={index}
                           time={time}
+                          selectedMedicationId={selectedMedicationIds[time]}
+                          onSelectMedication={(id) => setSelectedMedicationIds(prev => ({
+                            ...prev,
+                            [time]: id
+                          }))}
                         />
                       ))}
                       
                       <View style={styles.imageContainer}>
-                        <Image
-                          source={require('../assets/images/paracetamol.png')}
-                          style={styles.medicineImage}
-                          resizeMode="contain"
-                        />
-                        <View style={styles.dotContainer}>
-                          <View style={[styles.dot, styles.activeDot]} />
-                          <View style={styles.dot} />
-                          <View style={styles.dot} />
-                        </View>
+                        {selectedImages[time] ? (
+                          <Image
+                            source={selectedImages[time]}
+                            style={styles.medicineImage}
+                            resizeMode="contain"
+                          />
+                        ) : (
+                          <View style={styles.noImageContainer}>
+                            <Ionicons name="image-outline" size={40} color="#666" />
+                            <Text style={styles.noImageText}>No hay imagen disponible</Text>
+                          </View>
+                        )}
                       </View>
                     </View>
                   </View>
@@ -486,22 +581,6 @@ export default function MainScreen() {
               </TouchableWithoutFeedback>
             </KeyboardAvoidingView>
           </Modal>
-
-          {/* Tarjeta negra de detalle */}
-          {selectedMedication && (
-            <View style={styles.detailOverlay}>
-              <View style={styles.detailCard}>
-                <Text style={styles.detailTitle}>{selectedMedication.name}</Text>
-                <Text style={styles.detailDescription}>{selectedMedication.description || 'No hay descripción disponible.'}</Text>
-                <TouchableOpacity style={styles.soundButtonCustom}>
-                  <Ionicons name="volume-high" size={24} color="white" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.closeDetailButton} onPress={() => setSelectedMedication(null)}>
-                  <Ionicons name="close" size={22} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
@@ -602,6 +681,16 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 120,
     borderRadius: 8,
+  },
+  noImageContainer: {
+    width: '100%',
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noImageText: {
+    fontSize: 16,
+    color: '#666',
   },
   dotContainer: {
     flexDirection: 'row',

@@ -10,7 +10,6 @@ import {
   useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { MedicationDetail } from './MedicationDetail';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -26,92 +25,85 @@ export interface Medication {
 
 interface MedicationListProps {
   medications: Medication[] | undefined;
-  onMedicationPress: (medication: Medication) => void;
 }
 
 export const MedicationList: React.FC<MedicationListProps> = ({
   medications = [],
-  onMedicationPress,
 }) => {
   const { width } = useWindowDimensions();
-  const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
-  const [showDetail, setShowDetail] = useState(false);
-
-  const handleMedicationPress = (medication: Medication) => {
-    setSelectedMedication(medication);
-    setShowDetail(true);
-    onMedicationPress(medication);
-  };
+  const [selectedMedicationIndex, setSelectedMedicationIndex] = useState(0);
 
   if (!medications || medications.length === 0) {
     return null;
   }
 
+  const handleMedicationPress = (index: number) => {
+    setSelectedMedicationIndex(index);
+  };
+
+  const getMedicationImage = (medication: Medication) => {
+    if (medication.name.toLowerCase() === 'omeprazol') {
+      return require('../assets/images/omeprazol.jpeg');
+    }
+    return medication.image ? { uri: medication.image } : null;
+  };
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.medicationsContainer}>
-        {medications.map((med) => (
+        {medications.map((med, index) => (
           <TouchableOpacity
             key={med.id}
-            style={styles.medicationCard}
-            onPress={() => handleMedicationPress(med)}
+            style={[
+              styles.medicationCard,
+              index === selectedMedicationIndex && styles.selectedMedicationCard
+            ]}
+            onPress={() => handleMedicationPress(index)}
+            activeOpacity={0.7}
           >
             <View style={styles.medicationInfo}>
-              <Text style={styles.medicationName}>{med.name}</Text>
-              <Text style={styles.medicationDose}>{med.dose}</Text>
+              <Text style={[
+                styles.medicationName,
+                index === selectedMedicationIndex && styles.selectedMedicationName
+              ]}>
+                {med.name}
+              </Text>
+              <Text style={[
+                styles.medicationDose,
+                index === selectedMedicationIndex && styles.selectedMedicationDose
+              ]}>
+                {med.dose}
+              </Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color="white" />
           </TouchableOpacity>
         ))}
       </View>
 
       <View style={styles.imageSection}>
-        <ScrollView
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          style={styles.imageScroll}
-        >
-          {medications.map((med, index) => (
-            <View key={med.id} style={[styles.imageContainer, { width: width - 40 }]}>
-              <Image
-                source={require('../assets/images/paracetamol.png')}
-                style={styles.medicineImage}
-                resizeMode="contain"
-              />
-            </View>
-          ))}
-        </ScrollView>
+        {getMedicationImage(medications[selectedMedicationIndex]) ? (
+          <Image
+            source={getMedicationImage(medications[selectedMedicationIndex])}
+            style={styles.medicineImage}
+            resizeMode="contain"
+          />
+        ) : (
+          <View style={styles.noImageContainer}>
+            <Ionicons name="image-outline" size={40} color="#666" />
+            <Text style={styles.noImageText}>No hay imagen disponible</Text>
+          </View>
+        )}
         <View style={styles.dotIndicators}>
           {medications.map((_, index) => (
             <View
               key={index}
               style={[
                 styles.dot,
-                index === 0 && styles.activeDot
+                index === selectedMedicationIndex && styles.activeDot
               ]}
             />
           ))}
         </View>
       </View>
-
-      {selectedMedication && (
-        <View style={styles.descriptionContainer}>
-          <Text style={styles.descriptionTitle}>Descripción</Text>
-          <Text style={styles.descriptionText}>
-            {selectedMedication.description || 'No hay descripción disponible.'}
-          </Text>
-          <TouchableOpacity style={styles.soundButton}>
-            <Ionicons name="volume-high" size={24} color="black" />
-          </TouchableOpacity>
-        </View>
-      )}
-
-      <MedicationDetail
-        medication={selectedMedication}
-        visible={showDetail}
-        onClose={() => setShowDetail(false)}
-      />
     </ScrollView>
   );
 };
@@ -135,6 +127,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  selectedMedicationCard: {
+    backgroundColor: '#333',
+    borderWidth: 2,
+    borderColor: '#666',
+  },
   medicationInfo: {
     flex: 1,
   },
@@ -144,31 +141,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  selectedMedicationName: {
+    color: 'white',
+    fontWeight: '700',
+  },
   medicationDose: {
     color: 'rgba(255, 255, 255, 0.7)',
     fontSize: 14,
+  },
+  selectedMedicationDose: {
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   imageSection: {
     marginTop: 20,
     alignItems: 'center',
   },
-  imageScroll: {
-    flexGrow: 0,
-  },
-  imageContainer: {
-    height: 150,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   medicineImage: {
     width: '100%',
-    height: '100%',
+    height: 200,
     borderRadius: 15,
+  },
+  noImageContainer: {
+    width: '100%',
+    height: 200,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noImageText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 16,
   },
   dotIndicators: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 10,
+    marginTop: 15,
   },
   dot: {
     width: 8,
@@ -179,31 +188,5 @@ const styles = StyleSheet.create({
   },
   activeDot: {
     backgroundColor: 'black',
-  },
-  descriptionContainer: {
-    marginTop: 20,
-    padding: 20,
-    backgroundColor: 'black',
-    borderRadius: 15,
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-  descriptionTitle: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  descriptionText: {
-    color: 'white',
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 10,
-  },
-  soundButton: {
-    backgroundColor: 'white',
-    padding: 8,
-    borderRadius: 20,
-    alignSelf: 'flex-end',
-  },
+  }
 }); 
