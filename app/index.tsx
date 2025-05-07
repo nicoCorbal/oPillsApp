@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Calendar } from '../components/Calendar';
 import { Medication } from '../components/MedicationList';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 
 interface MedicationsByDate {
   [date: string]: {
@@ -143,7 +144,7 @@ export default function MainScreen() {
   const [selectedImages, setSelectedImages] = useState<{[key: string]: any}>({});
   const [selectedMedicationIds, setSelectedMedicationIds] = useState<{[key: string]: string | null}>({});
 
-  React.useEffect(() => {
+  useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
       'keyboardDidShow',
       () => {
@@ -237,13 +238,29 @@ export default function MainScreen() {
     console.log('Mic pressed');
   };
 
+  const handleCameraPress = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permiso denegado', 'Necesitas permitir acceso a la cámara');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 1,
+    });
+    if (!result.canceled) {
+      // Aquí puedes usar result.assets[0].uri
+      console.log('Foto tomada:', result.assets[0].uri);
+      // Por ejemplo, podrías guardar la URI en el estado si lo necesitas
+    }
+  };
+
   const handleAddOptionPress = (option: string) => {
     setShowAddOptions(false);
     if (option === 'medication') {
       setShowAddModal(true);
     } else if (option === 'camera') {
-      console.log('Abrir cámara');
-      // Aquí iría la lógica para abrir la cámara
+      handleCameraPress();
     } else if (option === 'gallery') {
       console.log('Abrir galería');
       // Aquí iría la lógica para abrir la galería
@@ -400,9 +417,9 @@ export default function MainScreen() {
           <View style={styles.inputContainerCustom}>
             <TouchableOpacity 
               style={styles.addButtonCustom}
-              onPress={() => setShowAddOptions(true)}
-              accessibilityLabel="Añadir medicamento, foto o elemento de la galería"
-              accessibilityHint="Pulsa para añadir un nuevo elemento"
+              onPress={handleCameraPress}
+              accessibilityLabel="Abrir cámara"
+              accessibilityHint="Pulsa para abrir la cámara"
             >
               <Ionicons name="camera" size={24} color="white" />
             </TouchableOpacity>
