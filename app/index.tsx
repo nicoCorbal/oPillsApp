@@ -24,6 +24,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 
+
 interface MedicationsByDate {
   [date: string]: {
     [time: string]: Medication[];
@@ -143,6 +144,19 @@ const fileToBase64 = async (uri: string): Promise<string> => {
   const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
   return base64;
 };
+
+// Definición de constantes para estilos
+const COLORS = {
+  primary: '#008CFF',
+  secondary: '#FF4A6C',
+  background: '#FFFFFF',
+  text: '#222',
+  textLight: '#FFFFFF',
+  border: '#e0e0e0',
+};
+
+const BORDER_RADIUS = 20;
+
 
 export default function MainScreen() {
   const insets = useSafeAreaInsets();
@@ -276,9 +290,20 @@ export default function MainScreen() {
     case "3":
     case 3:
       return ["Por la mañana", "Por la tarde", "Por la noche"];
+    case null:
+      return ["Todos"];
     default:
       return ["Todos"];
   }
+};
+
+const extractFrequencyNumber = (frequency: string | undefined): number | null => {
+  console.log('frequency:', frequency);
+  if (typeof frequency !== 'string') {
+    return frequency; // Retorna null si frequency no es un string
+  }
+  const match = frequency.match(/\d+/); // Busca uno o más dígitos en el string
+  return match ? parseInt(match[0], 10) : null; // Convierte el primer match a número o retorna null si no hay match
 };
 
 const getUserTreatments = async () => {
@@ -298,23 +323,27 @@ const getUserTreatments = async () => {
       let counter = medicationIdCounter;
 
       data.forEach((entry: any) => {
-        const timeLabels = getTimeLabels(entry.frequency);
-        const medicationImage = medicationImages[entry.name.toLowerCase()] || null;
-        timeLabels.forEach((timeLabel) => {
-          if (!medsByTime[timeLabel]) medsByTime[timeLabel] = [];
+        const timeNumbers = extractFrequencyNumber(entry.frequency);
+        if (timeNumbers !== null) {
+          const timeLabels = getTimeLabels(timeNumbers);
+          const medicationImage = medicationImages[entry.name.toLowerCase()] || null;
+          timeLabels.forEach((timeLabel) => {
+            
+            if (!medsByTime[timeLabel]) medsByTime[timeLabel] = [];
 
-          medsByTime[timeLabel].push({
-            id: counter.toString(),
-            name: entry.name,
-            dose: entry.dosage,
-            time: timeLabel,
-            description: entry.instructions || '',
-            instructions: entry.warnings || [],
-            image: medicationImage,
+            medsByTime[timeLabel].push({
+              id: counter.toString(),
+              name: entry.name,
+              dose: entry.dosage,
+              time: timeLabel,
+              description: entry.instructions || '',
+              instructions: entry.warnings || [],
+              image: medicationImage,
+            });
+
+            counter++;
           });
-
-          counter++;
-        });
+        }
       });
 
       // Establecer el primer medicamento de cada grupo como seleccionado
@@ -330,7 +359,6 @@ const getUserTreatments = async () => {
         }
       }
       setSelectedMedicationIds(selectedIds); // Actualizar el estado de IDs seleccionados
-
 
       setMedications((prev) => ({
         ...prev,
@@ -468,7 +496,11 @@ const getUserTreatments = async () => {
 
   // Función para enviar texto e imagen al backend
   const uploadTextRequest = async () => {
-    if (!inputText.trim()) {
+    const tempInputText = inputText;
+
+    setInputText('');
+
+    if (!tempInputText.trim()) {
       Alert.alert('Error', 'Introduce algún texto antes de enviar.');
       return;
     }
@@ -487,7 +519,7 @@ const getUserTreatments = async () => {
         },
         body: JSON.stringify({
           userId: userId,
-          text: inputText,
+          text: tempInputText,
           image: base64Image, // opcional
         }),
       });
@@ -552,7 +584,13 @@ const getUserTreatments = async () => {
         activeOpacity={0.7}
       >
         <View style={[styles.medicationIcon, isSelected ? styles.medicationIconSelected : {}]}>
-          <Ionicons name="medical-outline" size={18} color={isSelected ? "white" : "black"} />
+        <Image 
+          source={require('../assets/images/pill-icon.png')} 
+          style={{
+            width: 18,
+            height: 18,
+          }}
+        />
         </View>
         <Text style={[styles.medicationName, isSelected && styles.medicationNameSelected]}>
           {medication.name} <Text style={[styles.medicationDose, isSelected && styles.medicationDoseSelected]}>{medication.dose}</Text>
@@ -615,7 +653,7 @@ const getUserTreatments = async () => {
                         />
                       ) : (
                         <View style={styles.noImageContainer}>
-                          <Ionicons name="image-outline" size={40} color="#666" />
+                          <Ionicons name="image-outline" size={40} color={COLORS.primary} />
                           <Text style={styles.noImageText}>No hay imagen disponible</Text>
                         </View>
                       )}
@@ -635,12 +673,12 @@ const getUserTreatments = async () => {
               accessibilityLabel="Abrir cámara"
               accessibilityHint="Pulsa para abrir la cámara"
             >
-              <Ionicons name="camera" size={24} color="white" />
+              <Ionicons name="camera" size={24} color={COLORS.background} />
             </TouchableOpacity>
             <TextInput
               style={styles.inputCustom}
               placeholder="Type here...."
-              placeholderTextColor="#999"
+              placeholderTextColor={COLORS.textLight}
               value={inputText}
               onChangeText={setInputText}
               accessibilityLabel="Campo de texto para instrucciones"
@@ -649,13 +687,12 @@ const getUserTreatments = async () => {
               onSubmitEditing={async () => {
                 if (inputText.trim()) {
                   await uploadTextRequest();
-                  setInputText('');
-                  // await getUserTreatments();
+                  await getUserTreatments();
                 }
               }}
             />
             <TouchableOpacity 
-              style={[styles.micButtonCustom, isRecording && { backgroundColor: 'red', borderRadius: 20 }]}
+              style={[styles.micButtonCustom, isRecording && { backgroundColor: 'red', borderRadius: 20, padding: 7 }]}
               onPress={handleMicPress}
               accessibilityLabel={isRecording ? "Detener grabación" : "Activar micrófono"}
               accessibilityHint={isRecording ? "Pulsa para detener la grabación" : "Pulsa para dar instrucciones por voz"}
@@ -672,7 +709,7 @@ const getUserTreatments = async () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'white',
+    backgroundColor: COLORS.background,
   },
   mainScrollView: {
     flex: 1,
@@ -683,14 +720,14 @@ const styles = StyleSheet.create({
   },
   calendarContainer: {
     height: 120,
-    backgroundColor: 'white',
+    backgroundColor: COLORS.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: COLORS.secondary,
     zIndex: 1,
     paddingTop: 16,
   },
   medicationsContainer: {
-    backgroundColor: 'white',
+    backgroundColor: COLORS.background,
     paddingHorizontal: 20,
     paddingTop: 20,
   },
@@ -698,21 +735,21 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   medicationCard: {
-    backgroundColor: 'white',
-    borderRadius: 15,
+    backgroundColor: COLORS.background,
+    borderRadius: BORDER_RADIUS,
     padding: 15,
-    marginBottom: 20,
+    marginTop: 10,
+    marginBottom: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
   },
   medicationItemSelected: {
-    backgroundColor: '#333',
-    borderRadius: 10,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -721,7 +758,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'right',
     marginBottom: 15,
-    color: 'black',
+    color: COLORS.text,
   },
   medicationItem: {
     flexDirection: 'row',
@@ -729,19 +766,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: 10,
+    borderRadius: BORDER_RADIUS,
   },
   medicationIcon: {
     width: 28,
     height: 28,
-    borderRadius: 14,
-    backgroundColor: '#f0f0f0',
+    borderRadius: BORDER_RADIUS,
+    backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   medicationIconSelected: {
-    backgroundColor: 'white',
+    backgroundColor: COLORS.background,
   },
   medicationName: {
     fontSize: 16,
@@ -749,7 +786,7 @@ const styles = StyleSheet.create({
     color: '#222',
   },
   medicationNameSelected: {
-    color: 'white',
+    color: COLORS.textLight,
     fontWeight: '600',
   },
   medicationDose: {
@@ -767,7 +804,7 @@ const styles = StyleSheet.create({
   medicineImage: {
     width: '100%',
     height: 120,
-    borderRadius: 8,
+    borderRadius: BORDER_RADIUS,
   },
   noImageContainer: {
     width: '100%',
@@ -777,22 +814,12 @@ const styles = StyleSheet.create({
   },
   noImageText: {
     fontSize: 16,
-    color: '#666',
+    color: COLORS.primary,
   },
   dotContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 15,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ddd',
-    marginHorizontal: 4,
-  },
-  activeDot: {
-    backgroundColor: '#333',
   },
   emptyState: {
     flex: 1,
@@ -802,7 +829,7 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: '#666',
+    color: COLORS.primary,
     textAlign: 'center',
   },
   inputContainer: {
@@ -811,7 +838,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
     padding: 15,
     margin: 15,
-    borderRadius: 30,
+    borderRadius: BORDER_RADIUS,
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -820,9 +847,9 @@ const styles = StyleSheet.create({
   inputContainerCustom: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    backgroundColor: COLORS.primary,
     padding: 15,
-    borderRadius: 25,
+    borderRadius: BORDER_RADIUS,
     position: 'absolute',
     bottom: 40,
     left: 20,
@@ -844,7 +871,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     backgroundColor: '#333',
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS,
     padding: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
@@ -863,7 +890,7 @@ const styles = StyleSheet.create({
   addOptionIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: BORDER_RADIUS,
     backgroundColor: '#555',
     justifyContent: 'center',
     alignItems: 'center',
@@ -887,20 +914,19 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   addButtonCustom: {
-    backgroundColor: '#64B5F6',
     width: 40,
     height: 40,
-    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
   },
   inputCustom: {
     flex: 1,
-    color: 'white',
     fontSize: 16,
     height: 40,
-    paddingHorizontal: 10,
+    paddingHorizontal: 20,
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS,
   },
   micButtonCustom: {
     marginLeft: 10,
@@ -918,7 +944,7 @@ const styles = StyleSheet.create({
   },
   detailCard: {
     backgroundColor: 'black',
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS,
     padding: 20,
     paddingBottom: 50,
   },
@@ -940,7 +966,7 @@ const styles = StyleSheet.create({
     bottom: 20,
     backgroundColor: 'transparent',
     padding: 8,
-    borderRadius: 20,
+    borderRadius: BORDER_RADIUS,
   },
   closeDetailButton: {
     position: 'absolute',
@@ -988,7 +1014,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 20,
+    borderRadius: BORDER_RADIUS,
   },
   modalTabActive: {
     backgroundColor: '#f0f0f0',
@@ -1014,14 +1040,14 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     backgroundColor: '#f0f0f0',
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS,
     padding: 15,
     marginBottom: 15,
     fontSize: 16,
   },
   addMedicationButton: {
     backgroundColor: '#333',
-    borderRadius: 15,
+    borderRadius: BORDER_RADIUS,
     padding: 15,
     alignItems: 'center',
     marginTop: 10,

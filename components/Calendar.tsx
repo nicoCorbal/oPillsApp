@@ -13,6 +13,21 @@ interface CalendarProps {
   selectedDate: Date;
 }
 
+const COLORS = {
+  primary: '#008CFF',
+  secondary: '#FF4A6C',
+  background: '#008CFF',
+  text: '#222',
+  textLight: '#FFFFFF',
+  border: '#000000',
+};
+
+const BORDER_RADIUS = {
+  small: 10,
+  medium: 15,
+  large: 25,
+};
+
 const { width } = Dimensions.get('window');
 const WEEK_DAYS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
@@ -122,10 +137,11 @@ export const Calendar: React.FC<CalendarProps> = ({ onDateSelect, selectedDate }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'black',
+    backgroundColor: COLORS.background,
     paddingTop: 15,
     paddingBottom: 15,
     height: 120,
+    borderRadius: BORDER_RADIUS.large,
   },
   header: {
     alignItems: 'center',
@@ -136,9 +152,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   monthNumber: {
-    color: 'white',
     fontSize: 20,
     fontWeight: 'bold',
+    color: COLORS.textLight,
   },
   daysContainer: {
     flexDirection: 'row',
@@ -149,6 +165,7 @@ const styles = StyleSheet.create({
   },
   navigationButton: {
     padding: 5,
+    color: COLORS.textLight,
   },
   dayColumn: {
     alignItems: 'center',
@@ -156,41 +173,43 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   selectedDayColumn: {
-    borderRadius: 4,
+    borderRadius: BORDER_RADIUS.small,
   },
   todayColumn: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderRadius: 4,
   },
   dayNumber: {
-    color: 'white',
     fontSize: 20,
     fontWeight: '500',
+    color: COLORS.textLight,
   },
   selectedDayNumber: {
     fontWeight: 'bold',
+    color: COLORS.textLight,
   },
   todayDayNumber: {
-    color: 'white',
+    color: COLORS.textLight,
     fontWeight: 'bold',
   },
   dayLetter: {
-    color: 'white',
     fontSize: 16,
     marginTop: 4,
+    color: COLORS.textLight,
   },
   selectedDayLetter: {
     fontWeight: 'bold',
+    color: COLORS.textLight,
   },
   todayDayLetter: {
-    color: 'white',
     fontWeight: 'bold',
+    color: COLORS.textLight,
   },
   selectedLine: {
     position: 'absolute',
     bottom: 0,
     width: '100%',
     height: 2,
-    backgroundColor: 'white',
+    backgroundColor: COLORS.textLight,
   }
 });
