@@ -288,8 +288,8 @@ export default function MainScreen() {
     );
   };
   
-  // Componente para un medicamento con gesto de deslizamiento
-  const SwipeableMedicationItem = ({ 
+  // Componente para un medicamento
+  const MedicationItem = ({ 
     medication, 
     index, 
     time,
@@ -302,34 +302,6 @@ export default function MainScreen() {
     selectedMedicationId: string | null,
     onSelectMedication: (id: string) => void 
   }) => {
-    const pan = useRef(new Animated.ValueXY()).current;
-    const swipeThreshold = -80;
-    
-    const panResponder = PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: (_, gestureState) => {
-        if (gestureState.dx < 0) {
-          Animated.event([null, { dx: pan.x }], { useNativeDriver: false })(_, gestureState);
-        }
-      },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dx < swipeThreshold) {
-          Animated.timing(pan, {
-            toValue: { x: -100, y: 0 },
-            duration: 200,
-            useNativeDriver: false
-          }).start();
-          handleDeleteMedication(medication.id, time);
-        } else {
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            friction: 5,
-            useNativeDriver: false
-          }).start();
-        }
-      }
-    });
-    
     const handlePress = () => {
       onSelectMedication(medication.id);
       // Actualizar la imagen mostrada para este grupo de tiempo
@@ -343,23 +315,18 @@ export default function MainScreen() {
     const isSelected = selectedMedicationId === medication.id;
     
     return (
-      <Animated.View 
-        style={[{ transform: [{ translateX: pan.x }] }]}
-        {...panResponder.panHandlers}
+      <TouchableOpacity
+        style={[styles.medicationItem, isSelected && styles.medicationItemSelected]}
+        onPress={handlePress}
+        activeOpacity={0.7}
       >
-        <TouchableOpacity
-          style={[styles.medicationItem, isSelected && styles.medicationItemSelected]}
-          onPress={handlePress}
-          activeOpacity={0.7}
-        >
-          <View style={[styles.medicationIcon, isSelected ? styles.medicationIconSelected : {}]}>
-            <Ionicons name="medical-outline" size={18} color={isSelected ? "white" : "black"} />
-          </View>
-          <Text style={[styles.medicationName, isSelected && styles.medicationNameSelected]}>
-            {medication.name} <Text style={[styles.medicationDose, isSelected && styles.medicationDoseSelected]}>{medication.dose}</Text>
-          </Text>
-        </TouchableOpacity>
-      </Animated.View>
+        <View style={[styles.medicationIcon, isSelected ? styles.medicationIconSelected : {}]}>
+          <Ionicons name="medical-outline" size={18} color={isSelected ? "white" : "black"} />
+        </View>
+        <Text style={[styles.medicationName, isSelected && styles.medicationNameSelected]}>
+          {medication.name} <Text style={[styles.medicationDose, isSelected && styles.medicationDoseSelected]}>{medication.dose}</Text>
+        </Text>
+      </TouchableOpacity>
     );
   };
 
@@ -368,221 +335,225 @@ export default function MainScreen() {
       style={{ flex: 1 }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-          <View style={styles.calendarContainer}>
-            <Calendar 
-              onDateSelect={handleDateSelect}
-              selectedDate={selectedDate}
-            />
-          </View>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.calendarContainer}>
+          <Calendar 
+            onDateSelect={handleDateSelect}
+            selectedDate={selectedDate}
+          />
+        </View>
 
+        <ScrollView 
+          style={styles.mainScrollView}
+          contentContainerStyle={styles.mainScrollViewContent}
+          showsVerticalScrollIndicator={false}
+          bounces={true}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.medicationsContainer}>
             {getMedicationsForSelectedDate().length === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyStateText}>No hay medicamentos para este día</Text>
               </View>
             ) : (
-              <ScrollView>
-                {getMedicationsForSelectedDate().map(({ time, medications }) => (
-                  <View key={time} style={styles.timeGroup}>
-                    <View style={styles.medicationCard}>
-                      <Text style={styles.timeText}>{time}</Text>
-                      
-                      {medications.map((med, index) => (
-                        <SwipeableMedicationItem 
-                          key={med.id}
-                          medication={med}
-                          index={index}
-                          time={time}
-                          selectedMedicationId={selectedMedicationIds[time]}
-                          onSelectMedication={(id) => setSelectedMedicationIds(prev => ({
-                            ...prev,
-                            [time]: id
-                          }))}
+              getMedicationsForSelectedDate().map(({ time, medications }) => (
+                <View key={time} style={styles.timeGroup}>
+                  <View style={styles.medicationCard}>
+                    <Text style={styles.timeText}>{time}</Text>
+                    
+                    {medications.map((med, index) => (
+                      <MedicationItem 
+                        key={med.id}
+                        medication={med}
+                        index={index}
+                        time={time}
+                        selectedMedicationId={selectedMedicationIds[time]}
+                        onSelectMedication={(id) => setSelectedMedicationIds(prev => ({
+                          ...prev,
+                          [time]: id
+                        }))}
+                      />
+                    ))}
+                    
+                    <View style={styles.imageContainer}>
+                      {selectedImages[time] ? (
+                        <Image
+                          source={selectedImages[time]}
+                          style={styles.medicineImage}
+                          resizeMode="contain"
                         />
-                      ))}
-                      
-                      <View style={styles.imageContainer}>
-                        {selectedImages[time] ? (
-                          <Image
-                            source={selectedImages[time]}
-                            style={styles.medicineImage}
-                            resizeMode="contain"
-                          />
-                        ) : (
-                          <View style={styles.noImageContainer}>
-                            <Ionicons name="image-outline" size={40} color="#666" />
-                            <Text style={styles.noImageText}>No hay imagen disponible</Text>
-                          </View>
-                        )}
-                      </View>
+                      ) : (
+                        <View style={styles.noImageContainer}>
+                          <Ionicons name="image-outline" size={40} color="#666" />
+                          <Text style={styles.noImageText}>No hay imagen disponible</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
-                ))}
-              </ScrollView>
+                </View>
+              ))
             )}
           </View>
+        </ScrollView>
 
-          {!isKeyboardVisible && (
-            <View style={styles.inputContainerCustom}>
-              <TouchableOpacity 
-                style={styles.addButtonCustom}
-                onPress={() => setShowAddOptions(true)}
-                accessibilityLabel="Añadir medicamento, foto o elemento de la galería"
-                accessibilityHint="Pulsa para añadir un nuevo elemento"
-              >
-                <Ionicons name="camera" size={24} color="white" />
-              </TouchableOpacity>
-              <TextInput
-                style={styles.inputCustom}
-                placeholder="Type here...."
-                placeholderTextColor="#999"
-                value={inputText}
-                onChangeText={setInputText}
-                accessibilityLabel="Campo de texto para instrucciones"
-                editable={true}
-                autoCapitalize="none"
-                onSubmitEditing={() => {
-                  if (inputText.trim()) {
-                    console.log('Mensaje enviado:', inputText);
-                    setInputText('');
-                  }
-                }}
-              />
-              <TouchableOpacity 
-                style={styles.micButtonCustom}
-                onPress={handleMicPress}
-                accessibilityLabel="Activar micrófono"
-                accessibilityHint="Pulsa para dar instrucciones por voz"
-              >
-                <Ionicons name="mic" size={24} color="white" />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Opciones del botón + */}
-          {showAddOptions && (
-            <View style={styles.addOptionsContainer}>
-              <TouchableOpacity 
-                style={styles.addOptionItem}
-                onPress={() => handleAddOptionPress('medication')}
-              >
-                <View style={styles.addOptionIcon}>
-                  <Ionicons name="medical" size={22} color="white" />
-                </View>
-                <Text style={styles.addOptionText}>Medicamento</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.addOptionItem}
-                onPress={() => handleAddOptionPress('camera')}
-              >
-                <View style={styles.addOptionIcon}>
-                  <Ionicons name="camera" size={22} color="white" />
-                </View>
-                <Text style={styles.addOptionText}>Cámara</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={styles.addOptionItem}
-                onPress={() => handleAddOptionPress('gallery')}
-              >
-                <View style={styles.addOptionIcon}>
-                  <Ionicons name="images" size={22} color="white" />
-                </View>
-                <Text style={styles.addOptionText}>Galería</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.addOptionItem, styles.cancelOption]}
-                onPress={() => setShowAddOptions(false)}
-              >
-                <Text style={styles.cancelOptionText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <Modal
-            visible={showAddModal}
-            animationType="slide"
-            transparent={true}
-            onRequestClose={() => setShowAddModal(false)}
-            accessibilityViewIsModal={true}
-            accessibilityLabel="Añadir nuevo elemento"
-          >
-            <KeyboardAvoidingView 
-              style={styles.modalContainer}
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+        {!isKeyboardVisible && (
+          <View style={styles.inputContainerCustom}>
+            <TouchableOpacity 
+              style={styles.addButtonCustom}
+              onPress={() => setShowAddOptions(true)}
+              accessibilityLabel="Añadir medicamento, foto o elemento de la galería"
+              accessibilityHint="Pulsa para añadir un nuevo elemento"
             >
-              <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-                <View style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <Text style={styles.modalTitle}>Añadir Elemento</Text>
-                    <View style={styles.modalTabsContainer}>
-                      <TouchableOpacity style={[styles.modalTab, styles.modalTabActive]}>
-                        <Ionicons name="medical" size={22} color="black" />
-                        <Text style={styles.modalTabText}>Medicamento</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.modalTab}>
-                        <Ionicons name="image" size={22} color="#666" />
-                        <Text style={[styles.modalTabText, {color: '#666'}]}>Foto</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={styles.modalTab}>
-                        <Ionicons name="folder" size={22} color="#666" />
-                        <Text style={[styles.modalTabText, {color: '#666'}]}>Galería</Text>
-                      </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity 
-                      onPress={() => setShowAddModal(false)}
-                      style={styles.closeButton}
-                      accessibilityLabel="Cerrar"
-                    >
-                      <Ionicons name="close" size={24} color="black" />
+              <Ionicons name="camera" size={24} color="white" />
+            </TouchableOpacity>
+            <TextInput
+              style={styles.inputCustom}
+              placeholder="Type here...."
+              placeholderTextColor="#999"
+              value={inputText}
+              onChangeText={setInputText}
+              accessibilityLabel="Campo de texto para instrucciones"
+              editable={true}
+              autoCapitalize="none"
+              onSubmitEditing={() => {
+                if (inputText.trim()) {
+                  console.log('Mensaje enviado:', inputText);
+                  setInputText('');
+                }
+              }}
+            />
+            <TouchableOpacity 
+              style={styles.micButtonCustom}
+              onPress={handleMicPress}
+              accessibilityLabel="Activar micrófono"
+              accessibilityHint="Pulsa para dar instrucciones por voz"
+            >
+              <Ionicons name="mic" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Opciones del botón + */}
+        {showAddOptions && (
+          <View style={styles.addOptionsContainer}>
+            <TouchableOpacity 
+              style={styles.addOptionItem}
+              onPress={() => handleAddOptionPress('medication')}
+            >
+              <View style={styles.addOptionIcon}>
+                <Ionicons name="medical" size={22} color="white" />
+              </View>
+              <Text style={styles.addOptionText}>Medicamento</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.addOptionItem}
+              onPress={() => handleAddOptionPress('camera')}
+            >
+              <View style={styles.addOptionIcon}>
+                <Ionicons name="camera" size={22} color="white" />
+              </View>
+              <Text style={styles.addOptionText}>Cámara</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.addOptionItem}
+              onPress={() => handleAddOptionPress('gallery')}
+            >
+              <View style={styles.addOptionIcon}>
+                <Ionicons name="images" size={22} color="white" />
+              </View>
+              <Text style={styles.addOptionText}>Galería</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.addOptionItem, styles.cancelOption]}
+              onPress={() => setShowAddOptions(false)}
+            >
+              <Text style={styles.cancelOptionText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <Modal
+          visible={showAddModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowAddModal(false)}
+          accessibilityViewIsModal={true}
+          accessibilityLabel="Añadir nuevo elemento"
+        >
+          <KeyboardAvoidingView 
+            style={styles.modalContainer}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+          >
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Añadir Elemento</Text>
+                  <View style={styles.modalTabsContainer}>
+                    <TouchableOpacity style={[styles.modalTab, styles.modalTabActive]}>
+                      <Ionicons name="medical" size={22} color="black" />
+                      <Text style={styles.modalTabText}>Medicamento</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.modalTab}>
+                      <Ionicons name="image" size={22} color="#666" />
+                      <Text style={[styles.modalTabText, {color: '#666'}]}>Foto</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.modalTab}>
+                      <Ionicons name="folder" size={22} color="#666" />
+                      <Text style={[styles.modalTabText, {color: '#666'}]}>Galería</Text>
                     </TouchableOpacity>
                   </View>
-
-                  <ScrollView 
-                    style={styles.modalScroll}
-                    keyboardShouldPersistTaps="handled"
+                  <TouchableOpacity 
+                    onPress={() => setShowAddModal(false)}
+                    style={styles.closeButton}
+                    accessibilityLabel="Cerrar"
                   >
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="Nombre del medicamento"
-                      value={newMedication.name}
-                      onChangeText={(text) => setNewMedication({...newMedication, name: text})}
-                      autoCapitalize="words"
-                      returnKeyType="next"
-                    />
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="Dosis (ej: 500mg)"
-                      value={newMedication.dose}
-                      onChangeText={(text) => setNewMedication({...newMedication, dose: text})}
-                      returnKeyType="next"
-                    />
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="Hora (ej: 15:30)"
-                      value={newMedication.time}
-                      onChangeText={(text) => setNewMedication({...newMedication, time: text})}
-                      returnKeyType="done"
-                    />
-
-                    <TouchableOpacity 
-                      style={styles.addMedicationButton}
-                      onPress={handleAddMedication}
-                    >
-                      <Text style={styles.addMedicationButtonText}>Añadir</Text>
-                    </TouchableOpacity>
-                  </ScrollView>
+                    <Ionicons name="close" size={24} color="black" />
+                  </TouchableOpacity>
                 </View>
-              </TouchableWithoutFeedback>
-            </KeyboardAvoidingView>
-          </Modal>
-        </View>
-      </TouchableWithoutFeedback>
+
+                <ScrollView 
+                  style={styles.modalScroll}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Nombre del medicamento"
+                    value={newMedication.name}
+                    onChangeText={(text) => setNewMedication({...newMedication, name: text})}
+                    autoCapitalize="words"
+                    returnKeyType="next"
+                  />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Dosis (ej: 500mg)"
+                    value={newMedication.dose}
+                    onChangeText={(text) => setNewMedication({...newMedication, dose: text})}
+                    returnKeyType="next"
+                  />
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Hora (ej: 15:30)"
+                    value={newMedication.time}
+                    onChangeText={(text) => setNewMedication({...newMedication, time: text})}
+                    returnKeyType="done"
+                  />
+
+                  <TouchableOpacity 
+                    style={styles.addMedicationButton}
+                    onPress={handleAddMedication}
+                  >
+                    <Text style={styles.addMedicationButtonText}>Añadir</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
+          </KeyboardAvoidingView>
+        </Modal>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -590,22 +561,26 @@ export default function MainScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'black',
+    backgroundColor: 'white',
+  },
+  mainScrollView: {
+    flex: 1,
+  },
+  mainScrollViewContent: {
+    flexGrow: 1,
+    paddingBottom: 120,
   },
   calendarContainer: {
     height: 120,
-    backgroundColor: 'black',
-    marginBottom: 10,
+    backgroundColor: 'white',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+    zIndex: 1,
   },
   medicationsContainer: {
-    flex: 1,
     backgroundColor: 'white',
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 100, // Espacio para la barra inferior
-    marginTop: 0, // Ya no necesitamos el margen negativo
   },
   timeGroup: {
     marginBottom: 20,
