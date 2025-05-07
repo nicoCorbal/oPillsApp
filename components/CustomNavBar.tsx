@@ -62,7 +62,7 @@ export const CustomNavBar: React.FC<CustomNavBarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'white',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     shadowColor: '#000',
@@ -70,9 +70,11 @@ const styles = StyleSheet.create({
       width: 0,
       height: -3,
     },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 8,
+    borderTopWidth: 1,
+    borderColor: '#333',
   },
   content: {
     flexDirection: 'row',
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'white',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#64B5F6',
@@ -120,6 +122,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 8,
+    borderWidth: 2,
+    borderColor: '#64B5F6',
   },
   micInnerCircle: {
     width: 60,

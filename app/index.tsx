@@ -432,7 +432,7 @@ export default function MainScreen() {
                 accessibilityLabel="Añadir medicamento, foto o elemento de la galería"
                 accessibilityHint="Pulsa para añadir un nuevo elemento"
               >
-                <Ionicons name="add" size={24} color="white" />
+                <Ionicons name="camera" size={24} color="white" />
               </TouchableOpacity>
               <TextInput
                 style={styles.inputCustom}
@@ -733,19 +733,27 @@ const styles = StyleSheet.create({
   inputContainerCustom: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'black',
-    padding: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    padding: 15,
     borderRadius: 25,
     position: 'absolute',
-    bottom: 20,
+    bottom: 40,
     left: 20,
     right: 20,
     borderWidth: 1,
     borderColor: '#333',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   addOptionsContainer: {
     position: 'absolute',
-    bottom: 80,
+    bottom: 100,
     left: 20,
     right: 20,
     backgroundColor: '#333',
@@ -792,14 +800,20 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   addButtonCustom: {
+    backgroundColor: '#64B5F6',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 10,
-    padding: 5,
   },
   inputCustom: {
     flex: 1,
     color: 'white',
     fontSize: 16,
     height: 40,
+    paddingHorizontal: 10,
   },
   micButtonCustom: {
     marginLeft: 10,
