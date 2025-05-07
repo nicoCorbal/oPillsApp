@@ -317,6 +317,21 @@ const getUserTreatments = async () => {
         });
       });
 
+      // Establecer el primer medicamento de cada grupo como seleccionado
+      const selectedIds: { [key: string]: string | null } = {};
+      for (const time in medsByTime) {
+        if (medsByTime[time].length > 0) {
+          selectedIds[time] = medsByTime[time][0].id; // Seleccionar el primer medicamento
+          const medicationImage = medicationImages[medsByTime[time][0].name.toLowerCase()] || null;
+          setSelectedImages(prev => ({
+            ...prev,
+            [time]: medicationImage
+          }));
+        }
+      }
+      setSelectedMedicationIds(selectedIds); // Actualizar el estado de IDs seleccionados
+
+
       setMedications((prev) => ({
         ...prev,
         [getDateKey(selectedDate)]: medsByTime,
