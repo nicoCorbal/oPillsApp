@@ -265,7 +265,23 @@ export default function MainScreen() {
     setSelectedMedication(medication);
   };
 
-  const getUserTreatments = async () => {
+  const getTimeLabels = (time: number | string): string[] => {
+  switch (time) {
+    case "1":
+    case 1:
+      return ["Por la mañana"];
+    case "2":
+    case 2:
+      return ["Por la mañana", "Por la noche"];
+    case "3":
+    case 3:
+      return ["Por la mañana", "Por la tarde", "Por la noche"];
+    default:
+      return ["Todos"];
+  }
+};
+
+const getUserTreatments = async () => {
   try {
     const response = await fetch(`https://opills-api.deno.dev/api/db?userId=${userId}`, {
       method: 'GET',
@@ -282,26 +298,23 @@ export default function MainScreen() {
       let counter = medicationIdCounter;
 
       data.forEach((entry: any) => {
-        const time = entry.frequency || 'Todos';
+        const timeLabels = getTimeLabels(entry.frequency);
+        const medicationImage = medicationImages[entry.name.toLowerCase()] || null;
+        timeLabels.forEach((timeLabel) => {
+          if (!medsByTime[timeLabel]) medsByTime[timeLabel] = [];
 
-        if (!medsByTime[time]) medsByTime[time] = [];
+          medsByTime[timeLabel].push({
+            id: counter.toString(),
+            name: entry.name,
+            dose: entry.dosage,
+            time: timeLabel,
+            description: entry.instructions || '',
+            instructions: entry.warnings || [],
+            image: medicationImage,
+          });
 
-         // Cargar la imagen basada en el nombre de la medicación
-         const medicationImage = medicationImages[entry.name.toLowerCase()] || null; // Usa null si no se encuentra la imagen
-
-        medsByTime[time].push({
-          id: counter.toString(),
-          name: entry.name,
-          dose: entry.dosage,
-          time: time,
-          description: entry.instructions || '',
-          instructions: entry.warnings || [],
-          image: medicationImage,
+          counter++;
         });
-
-        console.log(entry);
-
-        counter++;
       });
 
       setMedications((prev) => ({
@@ -309,7 +322,7 @@ export default function MainScreen() {
         [getDateKey(selectedDate)]: medsByTime,
       }));
 
-      setMedicationIdCounter(counter);  // Solo actualizamos una vez
+      setMedicationIdCounter(counter);
     } else {
       setMedications((prev) => ({
         ...prev,
@@ -322,6 +335,7 @@ export default function MainScreen() {
     Alert.alert('Error', 'No se pudo obtener la base de datos');
   }
 };
+
 
 
   const handleStartRecording = async () => {
