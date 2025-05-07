@@ -21,6 +21,8 @@ import { Calendar } from '../components/Calendar';
 import { Medication } from '../components/MedicationList';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 
 interface MedicationsByDate {
   [date: string]: {
@@ -127,6 +129,12 @@ const createMedication = async (medicationData: {
   }
 };
 
+// Función para convertir un archivo a base64
+const fileToBase64 = async (uri: string): Promise<string> => {
+  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  return base64;
+};
+
 export default function MainScreen() {
   const insets = useSafeAreaInsets();
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -143,6 +151,12 @@ export default function MainScreen() {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [selectedImages, setSelectedImages] = useState<{[key: string]: any}>({});
   const [selectedMedicationIds, setSelectedMedicationIds] = useState<{[key: string]: string | null}>({});
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [audioUri, setAudioUri] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [imageUri, setImageUri] = useState<string | null>(null);
+
+  const userId = 'usuario-demo';
 
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -233,9 +247,192 @@ export default function MainScreen() {
     setSelectedMedication(medication);
   };
 
+  const getUserTreatments = async () => {
+    try {
+      const response = await fetch(`https://opills-api.deno.dev/api/db?userId=${userId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer osix_opills_api_token',
+        },
+      });
+      const data = await response.json();
+      console.log('Tratamientos encontrados:', data);
+      if (Array.isArray(data) && data.length > 0) {
+        // Agrupar por horario (frequency) o en 'Todos' si no hay frequency
+        const medsByTime: { [time: string]: Medication[] } = {};
+        data.forEach((entry: any) => {
+          const time = entry.frequency || 'Todos';
+          if (!medsByTime[time]) medsByTime[time] = [];
+          medsByTime[time].push({
+            id: entry.name + '-' + time,
+            name: entry.name,
+            dose: entry.dosage,
+            time: time,
+            description: entry.instructions || '',
+            instructions: entry.warnings || [],
+          });
+        });
+        setMedications((prev) => ({
+          ...prev,
+          [getDateKey(selectedDate)]: medsByTime,
+        }));
+        // Mostrar resumen en un Alert
+        const resumen = data.map((entry: any, index: number) => {
+          return `${index + 1}. ${entry.name} - ${entry.dosage}, ${entry.frequency || 'Sin horario'}`;
+        }).join('\n\n');
+        Alert.alert('Tratamientos actualizados', resumen);
+      } else {
+        setMedications((prev) => ({
+          ...prev,
+          [getDateKey(selectedDate)]: {},
+        }));
+        Alert.alert('Tratamientos', 'No hay tratamientos registrados.');
+      }
+    } catch (error) {
+      console.error('Error al obtener tratamientos:', error);
+      Alert.alert('Error', 'No se pudo obtener la base de datos');
+    }
+  };
+
+  const handleStartRecording = async () => {
+    try {
+      const permission = await Audio.requestPermissionsAsync();
+      if (permission.status !== 'granted') {
+        Alert.alert('Permiso denegado', 'Necesitas acceso al micrófono');
+        return;
+      }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+      const newRecording = new Audio.Recording();
+      await newRecording.prepareToRecordAsync({
+        android: {
+          extension: '.m4a',
+          outputFormat: 2, // MPEG_4
+          audioEncoder: 3,  // AAC
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+        },
+        ios: {
+          extension: '.caf',
+          audioQuality: 2, // HIGH
+          sampleRate: 44100,
+          numberOfChannels: 2,
+          bitRate: 128000,
+          linearPCMBitDepth: 16,
+          linearPCMIsBigEndian: false,
+          linearPCMIsFloat: false,
+        },
+        web: {
+          mimeType: 'audio/webm',
+          bitsPerSecond: 128000,
+        },
+      });
+      await newRecording.startAsync();
+      setRecording(newRecording);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Error al empezar la grabación', err);
+    }
+  };
+
+  const handleStopRecording = async () => {
+    if (!recording) return;
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setAudioUri(uri);
+      setRecording(null);
+      setIsRecording(false);
+      console.log('Audio grabado en:', uri);
+      // Llamar a uploadAudio tras grabar
+      await uploadAudio();
+      await getUserTreatments();
+    } catch (err) {
+      console.error('Error al detener la grabación', err);
+      setIsRecording(false);
+    }
+  };
+
   const handleMicPress = () => {
-    // Implementar reconocimiento de voz
-    console.log('Mic pressed');
+    if (isRecording) {
+      handleStopRecording();
+    } else {
+      handleStartRecording();
+    }
+  };
+
+  // Función para enviar el audio al backend
+  const uploadAudio = async () => {
+    if (!audioUri) {
+      Alert.alert('Error', 'No hay audio para enviar.');
+      return;
+    }
+    try {
+      const base64Audio = await fileToBase64(audioUri);
+      let base64Image: string | undefined = undefined;
+      if (imageUri) {
+        base64Image = await fileToBase64(imageUri);
+      }
+      const response = await fetch('https://opills-api.deno.dev/api/process-voice', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer osix_opills_api_token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          audio: base64Audio,
+          image: base64Image, // opcional
+        }),
+      });
+      const result = await response.json();
+      console.log('Intent:', result.intent);
+      console.log('Respuesta:', result.responseText);
+      Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
+      await getUserTreatments();
+    } catch (error) {
+      console.error('Error al hacer la petición de voz:', error);
+      Alert.alert('Error', 'No se pudo contactar con la API');
+    }
+  };
+
+  // Función para enviar texto e imagen al backend
+  const uploadTextRequest = async () => {
+    if (!inputText.trim()) {
+      Alert.alert('Error', 'Introduce algún texto antes de enviar.');
+      return;
+    }
+    try {
+      let base64Image: string | undefined;
+      if (imageUri) {
+        base64Image = await fileToBase64(imageUri);
+        console.log('Imagen convertida a base64');
+      }
+      console.log('base64Image:', base64Image);
+      const response = await fetch('https://opills-api.deno.dev/api/process-text', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer osix_opills_api_token',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: userId,
+          text: inputText,
+          image: base64Image, // opcional
+        }),
+      });
+      const result = await response.json();
+      console.log('Intent:', result.intent);
+      console.log('Respuesta:', result.responseText);
+      Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
+      await getUserTreatments();
+    } catch (error) {
+      console.error('Error al hacer la petición de texto:', error);
+      Alert.alert('Error', 'No se pudo contactar con la API');
+    }
   };
 
   const handleCameraPress = async () => {
@@ -247,23 +444,11 @@ export default function MainScreen() {
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       quality: 1,
+      base64: false,
     });
     if (!result.canceled) {
-      // Aquí puedes usar result.assets[0].uri
-      console.log('Foto tomada:', result.assets[0].uri);
-      // Por ejemplo, podrías guardar la URI en el estado si lo necesitas
-    }
-  };
-
-  const handleAddOptionPress = (option: string) => {
-    setShowAddOptions(false);
-    if (option === 'medication') {
-      setShowAddModal(true);
-    } else if (option === 'camera') {
-      handleCameraPress();
-    } else if (option === 'gallery') {
-      console.log('Abrir galería');
-      // Aquí iría la lógica para abrir la galería
+      // Guardar la URI de la imagen tomada
+      setImageUri(result.assets[0].uri);
     }
   };
   
@@ -413,7 +598,7 @@ export default function MainScreen() {
           </View>
         </ScrollView>
 
-        {!isKeyboardVisible && (
+        
           <View style={styles.inputContainerCustom}>
             <TouchableOpacity 
               style={styles.addButtonCustom}
@@ -432,144 +617,23 @@ export default function MainScreen() {
               accessibilityLabel="Campo de texto para instrucciones"
               editable={true}
               autoCapitalize="none"
-              onSubmitEditing={() => {
+              onSubmitEditing={async () => {
                 if (inputText.trim()) {
-                  console.log('Mensaje enviado:', inputText);
+                  await uploadTextRequest();
                   setInputText('');
                 }
               }}
             />
             <TouchableOpacity 
-              style={styles.micButtonCustom}
+              style={[styles.micButtonCustom, isRecording && { backgroundColor: 'red', borderRadius: 20 }]}
               onPress={handleMicPress}
-              accessibilityLabel="Activar micrófono"
-              accessibilityHint="Pulsa para dar instrucciones por voz"
+              accessibilityLabel={isRecording ? "Detener grabación" : "Activar micrófono"}
+              accessibilityHint={isRecording ? "Pulsa para detener la grabación" : "Pulsa para dar instrucciones por voz"}
             >
-              <Ionicons name="mic" size={24} color="white" />
+              <Ionicons name="mic" size={24} color={isRecording ? "white" : "white"} />
             </TouchableOpacity>
           </View>
-        )}
-
-        {/* Opciones del botón + */}
-        {showAddOptions && (
-          <View style={styles.addOptionsContainer}>
-            <TouchableOpacity 
-              style={styles.addOptionItem}
-              onPress={() => handleAddOptionPress('medication')}
-            >
-              <View style={styles.addOptionIcon}>
-                <Ionicons name="medical" size={22} color="white" />
-              </View>
-              <Text style={styles.addOptionText}>Medicamento</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.addOptionItem}
-              onPress={() => handleAddOptionPress('camera')}
-            >
-              <View style={styles.addOptionIcon}>
-                <Ionicons name="camera" size={22} color="white" />
-              </View>
-              <Text style={styles.addOptionText}>Cámara</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={styles.addOptionItem}
-              onPress={() => handleAddOptionPress('gallery')}
-            >
-              <View style={styles.addOptionIcon}>
-                <Ionicons name="images" size={22} color="white" />
-              </View>
-              <Text style={styles.addOptionText}>Galería</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.addOptionItem, styles.cancelOption]}
-              onPress={() => setShowAddOptions(false)}
-            >
-              <Text style={styles.cancelOptionText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        <Modal
-          visible={showAddModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowAddModal(false)}
-          accessibilityViewIsModal={true}
-          accessibilityLabel="Añadir nuevo elemento"
-        >
-          <KeyboardAvoidingView 
-            style={styles.modalContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
-          >
-            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Añadir Elemento</Text>
-                  <View style={styles.modalTabsContainer}>
-                    <TouchableOpacity style={[styles.modalTab, styles.modalTabActive]}>
-                      <Ionicons name="medical" size={22} color="black" />
-                      <Text style={styles.modalTabText}>Medicamento</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.modalTab}>
-                      <Ionicons name="image" size={22} color="#666" />
-                      <Text style={[styles.modalTabText, {color: '#666'}]}>Foto</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.modalTab}>
-                      <Ionicons name="folder" size={22} color="#666" />
-                      <Text style={[styles.modalTabText, {color: '#666'}]}>Galería</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <TouchableOpacity 
-                    onPress={() => setShowAddModal(false)}
-                    style={styles.closeButton}
-                    accessibilityLabel="Cerrar"
-                  >
-                    <Ionicons name="close" size={24} color="black" />
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView 
-                  style={styles.modalScroll}
-                  keyboardShouldPersistTaps="handled"
-                >
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="Nombre del medicamento"
-                    value={newMedication.name}
-                    onChangeText={(text) => setNewMedication({...newMedication, name: text})}
-                    autoCapitalize="words"
-                    returnKeyType="next"
-                  />
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="Dosis (ej: 500mg)"
-                    value={newMedication.dose}
-                    onChangeText={(text) => setNewMedication({...newMedication, dose: text})}
-                    returnKeyType="next"
-                  />
-                  <TextInput
-                    style={styles.modalInput}
-                    placeholder="Hora (ej: 15:30)"
-                    value={newMedication.time}
-                    onChangeText={(text) => setNewMedication({...newMedication, time: text})}
-                    returnKeyType="done"
-                  />
-
-                  <TouchableOpacity 
-                    style={styles.addMedicationButton}
-                    onPress={handleAddMedication}
-                  >
-                    <Text style={styles.addMedicationButtonText}>Añadir</Text>
-                  </TouchableOpacity>
-                </ScrollView>
-              </View>
-            </TouchableWithoutFeedback>
-          </KeyboardAvoidingView>
-        </Modal>
+        
       </View>
     </KeyboardAvoidingView>
   );
@@ -593,6 +657,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
     zIndex: 1,
+    paddingTop: 16,
   },
   medicationsContainer: {
     backgroundColor: 'white',
