@@ -56,7 +56,7 @@ const INITIAL_MEDICATIONS: MedicationsByDate = {
         name: 'Omeprazol',
         dose: '20mg',
         time: '09:00',
-        image: require('../assets/images/omeprazol.jpeg'),
+        image: require('../assets/images/omeprazol.png'),
         description: 'Inhibidor de la bomba de protones utilizado para reducir la producción de ácido en el estómago.',
         instructions: [
           'Tomar en ayunas',
@@ -89,10 +89,19 @@ const INITIAL_MEDICATIONS: MedicationsByDate = {
           'Tomar cada 8 horas',
           'Completar el tratamiento',
           'Tomar con o sin alimentos'
-        ]
+        ],
+        image: require('../assets/images/amoxicilina.png'),
       }
     ]
   }
+};
+
+const medicationImages: { [key: string]: any } = {
+  ibuprofeno: require('../assets/images/ibuprofeno.png'),
+  omeprazol: require('../assets/images/omeprazol.png'),
+  paracetamol: require('../assets/images/paracetamol.png'),
+  amoxicilina: require('../assets/images/amoxicilina.png'),
+  // Agrega más medicamentos según sea necesario
 };
 
 // Función que se usará para crear medicamentos (preparada para el backend)
@@ -155,6 +164,7 @@ export default function MainScreen() {
   const [audioUri, setAudioUri] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
+  const [medicationIdCounter, setMedicationIdCounter] = useState(1);
 
   const userId = 'usuario-demo';
 
@@ -177,6 +187,11 @@ export default function MainScreen() {
       keyboardDidHideListener.remove();
     };
   }, []);
+
+  // Obtener tratamientos al iniciar la app
+  useEffect(() => {
+      getUserTreatments();
+    }, []);
 
   const getDateKey = (date: Date) => {
     return date.toISOString().split('T')[0];
@@ -210,10 +225,13 @@ export default function MainScreen() {
     if (newMedication.name && newMedication.dose) {
       try {
         const newMed = await createMedication({
+          
           ...newMedication,
           instructions: ['Tomar según indicaciones del médico'],
           image: selectedImages[newMedication.time] || undefined
         });
+
+        
 
         const dateKey = getDateKey(selectedDate);
         setMedications(prev => {
@@ -248,51 +266,63 @@ export default function MainScreen() {
   };
 
   const getUserTreatments = async () => {
-    try {
-      const response = await fetch(`https://opills-api.deno.dev/api/db?userId=${userId}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer osix_opills_api_token',
-        },
-      });
-      const data = await response.json();
-      console.log('Tratamientos encontrados:', data);
-      if (Array.isArray(data) && data.length > 0) {
-        // Agrupar por horario (frequency) o en 'Todos' si no hay frequency
-        const medsByTime: { [time: string]: Medication[] } = {};
-        data.forEach((entry: any) => {
-          const time = entry.frequency || 'Todos';
-          if (!medsByTime[time]) medsByTime[time] = [];
-          medsByTime[time].push({
-            id: entry.name + '-' + time,
-            name: entry.name,
-            dose: entry.dosage,
-            time: time,
-            description: entry.instructions || '',
-            instructions: entry.warnings || [],
-          });
+  try {
+    const response = await fetch(`https://opills-api.deno.dev/api/db?userId=${userId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': 'Bearer osix_opills_api_token',
+      },
+    });
+
+    const data = await response.json();
+    console.log('Tratamientos encontrados:', data);
+
+    if (Array.isArray(data) && data.length > 0) {
+      const medsByTime: { [time: string]: Medication[] } = {};
+      let counter = medicationIdCounter;
+
+      data.forEach((entry: any) => {
+        const time = entry.frequency || 'Todos';
+
+        if (!medsByTime[time]) medsByTime[time] = [];
+
+         // Cargar la imagen basada en el nombre de la medicación
+         const medicationImage = medicationImages[entry.name.toLowerCase()] || null; // Usa null si no se encuentra la imagen
+
+        medsByTime[time].push({
+          id: counter.toString(),
+          name: entry.name,
+          dose: entry.dosage,
+          time: time,
+          description: entry.instructions || '',
+          instructions: entry.warnings || [],
+          image: medicationImage,
         });
-        setMedications((prev) => ({
-          ...prev,
-          [getDateKey(selectedDate)]: medsByTime,
-        }));
-        // Mostrar resumen en un Alert
-        const resumen = data.map((entry: any, index: number) => {
-          return `${index + 1}. ${entry.name} - ${entry.dosage}, ${entry.frequency || 'Sin horario'}`;
-        }).join('\n\n');
-        Alert.alert('Tratamientos actualizados', resumen);
-      } else {
-        setMedications((prev) => ({
-          ...prev,
-          [getDateKey(selectedDate)]: {},
-        }));
-        Alert.alert('Tratamientos', 'No hay tratamientos registrados.');
-      }
-    } catch (error) {
-      console.error('Error al obtener tratamientos:', error);
-      Alert.alert('Error', 'No se pudo obtener la base de datos');
+
+        console.log(entry);
+
+        counter++;
+      });
+
+      setMedications((prev) => ({
+        ...prev,
+        [getDateKey(selectedDate)]: medsByTime,
+      }));
+
+      setMedicationIdCounter(counter);  // Solo actualizamos una vez
+    } else {
+      setMedications((prev) => ({
+        ...prev,
+        [getDateKey(selectedDate)]: {},
+      }));
+      Alert.alert('Tratamientos', 'No hay tratamientos registrados.');
     }
-  };
+  } catch (error) {
+    console.error('Error al obtener tratamientos:', error);
+    Alert.alert('Error', 'No se pudo obtener la base de datos');
+  }
+};
+
 
   const handleStartRecording = async () => {
     try {
@@ -305,6 +335,14 @@ export default function MainScreen() {
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
       });
+
+      // Si ya hay un audio grabado, lo eliminamos
+      if (recording) {
+        await recording.stopAndUnloadAsync();
+        setRecording(null);
+        setAudioUri(null); // Limpiar la URI del audio anterior
+      }
+
       const newRecording = new Audio.Recording();
       await newRecording.prepareToRecordAsync({
         android: {
@@ -339,7 +377,11 @@ export default function MainScreen() {
   };
 
   const handleStopRecording = async () => {
-    if (!recording) return;
+    console.log('Deteniendo grabación');
+    if (!recording) {
+      console.log('No hay grabación');
+      return;
+    }
     try {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
@@ -349,7 +391,6 @@ export default function MainScreen() {
       console.log('Audio grabado en:', uri);
       // Llamar a uploadAudio tras grabar
       await uploadAudio();
-      await getUserTreatments();
     } catch (err) {
       console.error('Error al detener la grabación', err);
       setIsRecording(false);
@@ -372,10 +413,6 @@ export default function MainScreen() {
     }
     try {
       const base64Audio = await fileToBase64(audioUri);
-      let base64Image: string | undefined = undefined;
-      if (imageUri) {
-        base64Image = await fileToBase64(imageUri);
-      }
       const response = await fetch('https://opills-api.deno.dev/api/process-voice', {
         method: 'POST',
         headers: {
@@ -385,14 +422,15 @@ export default function MainScreen() {
         body: JSON.stringify({
           userId: userId,
           audio: base64Audio,
-          image: base64Image, // opcional
         }),
       });
       const result = await response.json();
       console.log('Intent:', result.intent);
       console.log('Respuesta:', result.responseText);
       Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
-      await getUserTreatments();
+
+      // Limpiar la URI del audio después de enviarlo
+      setAudioUri(null);
     } catch (error) {
       console.error('Error al hacer la petición de voz:', error);
       Alert.alert('Error', 'No se pudo contactar con la API');
@@ -428,7 +466,6 @@ export default function MainScreen() {
       console.log('Intent:', result.intent);
       console.log('Respuesta:', result.responseText);
       Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
-      await getUserTreatments();
     } catch (error) {
       console.error('Error al hacer la petición de texto:', error);
       Alert.alert('Error', 'No se pudo contactar con la API');
@@ -451,44 +488,7 @@ export default function MainScreen() {
       setImageUri(result.assets[0].uri);
     }
   };
-  
-  // Función para eliminar un medicamento
-  const handleDeleteMedication = (medicationId: string, time: string) => {
-    Alert.alert(
-      "Eliminar medicamento",
-      "¿Estás seguro de que quieres eliminar este medicamento?",
-      [
-        {
-          text: "Cancelar",
-          style: "cancel"
-        },
-        { 
-          text: "Eliminar", 
-          onPress: () => {
-            const dateKey = getDateKey(selectedDate);
-            setMedications(prev => {
-              const updatedMedications = {...prev};
-              const timeSlot = [...(updatedMedications[dateKey][time] || [])];
-              const filteredMedications = timeSlot.filter(med => med.id !== medicationId);
-              
-              if (filteredMedications.length === 0) {
-                // Si no quedan medicamentos en este horario, eliminar el horario
-                const updatedTimeSlots = {...updatedMedications[dateKey]};
-                delete updatedTimeSlots[time];
-                updatedMedications[dateKey] = updatedTimeSlots;
-              } else {
-                // Actualizar los medicamentos para este horario
-                updatedMedications[dateKey][time] = filteredMedications;
-              }
-              
-              return updatedMedications;
-            });
-          },
-          style: "destructive"
-        }
-      ]
-    );
-  };
+
   
   // Componente para un medicamento
   const MedicationItem = ({ 
@@ -621,6 +621,7 @@ export default function MainScreen() {
                 if (inputText.trim()) {
                   await uploadTextRequest();
                   setInputText('');
+                  // await getUserTreatments();
                 }
               }}
             />
