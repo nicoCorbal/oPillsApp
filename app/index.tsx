@@ -389,7 +389,7 @@ const getUserTreatments = async () => {
         if (timeNumbers !== null) {
           const timeLabels = getTimeLabels(timeNumbers);
           console.log('name:', entry.name);          
-          const medicationImage = getImageSource(entry.name.toLowerCase()) || null;
+          const medicationImage = getImageSource(detectMedication(entry.name)) || null;
           
           timeLabels.forEach((timeLabel) => {
             
@@ -415,7 +415,7 @@ const getUserTreatments = async () => {
       for (const time in medsByTime) {
         if (medsByTime[time].length > 0) {
           selectedIds[time] = medsByTime[time][0].id; // Seleccionar el primer medicamento
-          const medicationImage = getImageSource(medsByTime[time][0].name.toLowerCase()) || null;
+          const medicationImage = getImageSource(detectMedication(medsByTime[time][0].name.toLowerCase())) || null;
           setSelectedImages(prev => ({
             ...prev,
             [time]: medicationImage
@@ -550,6 +550,9 @@ useEffect(() => {
               }),
           });
           const result = await response.json();
+          if (result.responseText) {
+            updateMedicationImage(detectMedication(result.responseText), imageUri);
+          }
           getUserTreatments();
           console.log('Intent:', result.intent);
           console.log('Respuesta:', result.responseText);
