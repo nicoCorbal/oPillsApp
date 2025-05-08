@@ -97,13 +97,30 @@ const INITIAL_MEDICATIONS: MedicationsByDate = {
   }
 };
 
-const medicationImages: { [key: string]: any } = {
-  ibuprofeno: require('../assets/images/ibuprofeno.png'),
-  omeprazol: require('../assets/images/omeprazol.png'),
-  paracetamol: require('../assets/images/paracetamol.png'),
-  amoxicilina: require('../assets/images/amoxicilina.png'),
-  // Agrega más medicamentos según sea necesario
+
+export const medicationImages: { [key: string]: { uri?: string; local?: any } } = {
+  ibuprofeno: { local: require('../assets/images/ibuprofeno.png') },
+  omeprazol: { local: require('../assets/images/omeprazol.png') },
+  paracetamol: { local: require('../assets/images/paracetamol.png') },
+  amoxicilina: { local: require('../assets/images/amoxicilina.png') },
 };
+
+export const updateMedicationImage = (name: string, uri: string | null) => {
+  if (medicationImages[name]) {
+    medicationImages[name].uri = uri || undefined;
+  } else {
+    medicationImages[name] = { uri: uri || undefined };
+  }
+};
+
+export const getImageSource = (name: string): { uri: string } | number => {
+  const entry = medicationImages[name];
+
+  if (!entry) return require('../assets/images/icon.png'); // Imagen por defecto
+
+  return entry.uri ? { uri: entry.uri } : entry.local;
+};
+
 
 // Función que se usará para crear medicamentos (preparada para el backend)
 const createMedication = async (medicationData: {
@@ -156,7 +173,7 @@ const COLORS = {
 };
 
 const BORDER_RADIUS = {
-  large: 20,
+  large: 17,
   small: 14,
 };
 
@@ -207,12 +224,12 @@ export default function MainScreen() {
   }, []);
 
   useEffect(() => {
-    setInputContainerPadding(40);
+    setInputContainerPadding(50);
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
         setInputContainerPadding(400); // Ajusta el padding cuando el teclado se muestra
     });
     const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
-        setInputContainerPadding(40); // Restaura el padding cuando el teclado se oculta
+        setInputContainerPadding(50); // Restaura el padding cuando el teclado se oculta
     });
 
     return () => {
@@ -317,14 +334,39 @@ export default function MainScreen() {
   }
 };
 
-const extractFrequencyNumber = (frequency: string | undefined): number | null => {
+const extractFrequencyNumber = (frequency: string): number => {
   console.log('frequency:', frequency);
-  if (typeof frequency !== 'string') {
-    return frequency; // Retorna null si frequency no es un string
+
+  if (typeof frequency !== 'string') return 1;
+
+  // Diccionario de texto a número
+  const textToNumber: { [key: string]: number } = {
+    uno: 1,
+    dos: 2,
+    tres: 3,
+  };
+
+  // Busca números en formato numérico
+  const match = frequency.match(/\d+/);
+  if (match) {
+    const num = parseInt(match[0], 10);
+    if (num >= 1 && num <= 3) {
+      return num;
+    }
   }
-  const match = frequency.match(/\d+/); // Busca uno o más dígitos en el string
-  return match ? parseInt(match[0], 10) : null; // Convierte el primer match a número o retorna null si no hay match
+
+  // Busca números en formato textual
+  const words = frequency.toLowerCase().split(/\s+/);
+  for (const word of words) {
+    if (textToNumber[word]) {
+      return textToNumber[word];
+    }
+  }
+
+  // Retorna 1 por defecto
+  return 1;
 };
+
 
 const getUserTreatments = async () => {
   try {
@@ -346,7 +388,9 @@ const getUserTreatments = async () => {
         const timeNumbers = extractFrequencyNumber(entry.frequency);
         if (timeNumbers !== null) {
           const timeLabels = getTimeLabels(timeNumbers);
-          const medicationImage = medicationImages[entry.name.toLowerCase()] || null;
+          console.log('name:', entry.name);          
+          const medicationImage = getImageSource(entry.name.toLowerCase()) || null;
+          
           timeLabels.forEach((timeLabel) => {
             
             if (!medsByTime[timeLabel]) medsByTime[timeLabel] = [];
@@ -371,7 +415,7 @@ const getUserTreatments = async () => {
       for (const time in medsByTime) {
         if (medsByTime[time].length > 0) {
           selectedIds[time] = medsByTime[time][0].id; // Seleccionar el primer medicamento
-          const medicationImage = medicationImages[medsByTime[time][0].name.toLowerCase()] || null;
+          const medicationImage = getImageSource(medsByTime[time][0].name.toLowerCase()) || null;
           setSelectedImages(prev => ({
             ...prev,
             [time]: medicationImage
@@ -486,6 +530,12 @@ useEffect(() => {
           return;
       }
       try {
+        let base64Image: string | undefined;
+        if (imageUri) {
+          base64Image = await fileToBase64(imageUri);
+          console.log('Imagen convertida a base64');
+        }
+        console.log('base64Image:', base64Image);
           const base64Audio = await fileToBase64(audioUri);
           const response = await fetch('https://opills-api.deno.dev/api/process-voice', {
               method: 'POST',
@@ -496,9 +546,11 @@ useEffect(() => {
               body: JSON.stringify({
                   userId: userId,
                   audio: base64Audio,
+                  image: base64Image,
               }),
           });
           const result = await response.json();
+          getUserTreatments();
           console.log('Intent:', result.intent);
           console.log('Respuesta:', result.responseText);
           Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
@@ -515,6 +567,44 @@ useEffect(() => {
       uploadAudio(); // Llama a la función para subir el audio solo si audioUri está definido
   }
 }, [audioUri]); // Este efecto se ejecutará cada vez que audioUri cambie
+
+const medications_realPhoto = ["paracetamol", "ibuprofeno", "amoxicilina"];
+
+// Diccionario de variantes
+const medicationVariants: { [key: string]: string } = {
+  "paracetamol normon": "paracetamol",
+  "ibuprofeno normon": "ibuprofeno",
+  "ibuprofeno cinfa": "ibuprofeno",
+  "amoxicilina ardine": "amoxicilina",
+};
+
+/**
+ * Detecta un medicamento en un string.
+ * @param {string} text - El texto donde se buscará el medicamento.
+ * @returns {string} - El nombre del medicamento encontrado o "paracetamol" si no se encuentra.
+ */
+const detectMedication = (text: string): string => {
+  const lowerText = text.toLowerCase();
+
+  // Primero, verificar las variantes específicas
+  for (const variant in medicationVariants) {
+    if (lowerText.includes(variant)) {
+      return medicationVariants[variant];
+    }
+  }
+
+  // Si no coincide con ninguna variante, buscar por los nombres base
+  for (const medication of medications_realPhoto) {
+    if (lowerText.includes(medication)) {
+      return medication;
+    }
+  }
+
+  // Por defecto, retornar "paracetamol"
+  return "paracetamol";
+};
+
+
 
   // Función para enviar texto e imagen al backend
   const uploadTextRequest = async () => {
@@ -546,8 +636,12 @@ useEffect(() => {
         }),
       });
       const result = await response.json();
+      getUserTreatments();
       console.log('Intent:', result.intent);
       console.log('Respuesta:', result.responseText);
+      if (result.responseText) {
+        updateMedicationImage(detectMedication(result.responseText), imageUri);
+      }
       Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
     } catch (error) {
       console.error('Error al hacer la petición de texto:', error);
@@ -638,7 +732,7 @@ useEffect(() => {
           style={styles.mainScrollView}
           contentContainerStyle={styles.mainScrollViewContent}
           showsVerticalScrollIndicator={false}
-          bounces={true}
+          bounces={false}
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.medicationsContainer}>
@@ -698,28 +792,19 @@ useEffect(() => {
               <Ionicons name="camera" size={24} color={COLORS.background} />
             </TouchableOpacity>
             <TextInput
-              style={styles.inputCustom}
-              placeholder="Type here...."
-              placeholderTextColor={COLORS.textLight}
+              style={[styles.inputCustom, { color: COLORS.textLight }]} // Cambia el color aquí
+              placeholder="Escribe algo..."
               value={inputText}
               onChangeText={setInputText}
-              accessibilityLabel="Campo de texto para instrucciones"
-              editable={true}
-              autoCapitalize="none"
-              onSubmitEditing={async () => {
-                if (inputText.trim()) {
-                  await uploadTextRequest();
-                  await getUserTreatments();
-                }
-              }}
+              onSubmitEditing={uploadTextRequest} // Llama a la función al presionar Enter
+              returnKeyType="send" // Cambia el tipo de tecla de retorno a "Enviar"
+        
             />
             <TouchableOpacity 
-              style={[styles.micButtonCustom, isRecording && { backgroundColor: 'red', borderRadius: 20, padding: 7 }]}
+              style={[styles.micButtonCustom, isRecording && styles.micButtonRecording]}
               onPress={handleMicPress}
-              accessibilityLabel={isRecording ? "Detener grabación" : "Activar micrófono"}
-              accessibilityHint={isRecording ? "Pulsa para detener la grabación" : "Pulsa para dar instrucciones por voz"}
             >
-              <Ionicons name="mic" size={24} color={isRecording ? "white" : "white"} />
+              <Ionicons name={"mic"} size={24} color={COLORS.background} />
             </TouchableOpacity>
           </View>
         
@@ -733,20 +818,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  calendarContainer: {
+    padding: 20,
+  },
   mainScrollView: {
     flex: 1,
   },
   mainScrollViewContent: {
-    flexGrow: 1,
-    paddingBottom: 120,
-  },
-  calendarContainer: {
-    height: 120,
-    backgroundColor: COLORS.background,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.secondary,
-    zIndex: 1,
-    paddingTop: 16,
+    padding: 20,
   },
   medicationsContainer: {
     backgroundColor: COLORS.background,
@@ -953,6 +1032,10 @@ const styles = StyleSheet.create({
   micButtonCustom: {
     marginLeft: 10,
     padding: 5,
+    borderRadius: BORDER_RADIUS.large,
+  },
+  micButtonRecording: {
+    backgroundColor: 'red',
   },
   detailOverlay: {
     position: 'absolute',
