@@ -179,6 +179,7 @@ export default function MainScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [medicationIdCounter, setMedicationIdCounter] = useState(1);
+  const [inputContainerPadding, setInputContainerPadding] = useState(20); // Valor inicial del padding
 
   const userId = 'usuario-demo';
 
@@ -201,6 +202,22 @@ export default function MainScreen() {
       keyboardDidHideListener.remove();
     };
   }, []);
+
+  useEffect(() => {
+    setInputContainerPadding(40);
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', () => {
+        setInputContainerPadding(400); // Ajusta el padding cuando el teclado se muestra
+    });
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+        setInputContainerPadding(40); // Restaura el padding cuando el teclado se oculta
+    });
+
+    return () => {
+        keyboardDidShowListener.remove();
+        keyboardDidHideListener.remove();
+    };
+}, []);
+
 
   // Obtener tratamientos al iniciar la app
   useEffect(() => {
@@ -668,7 +685,7 @@ useEffect(() => {
         </ScrollView>
 
         
-          <View style={styles.inputContainerCustom}>
+          <View style={[styles.inputContainerCustom, { bottom: inputContainerPadding }]}>
             <TouchableOpacity 
               style={styles.addButtonCustom}
               onPress={handleCameraPress}
