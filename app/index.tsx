@@ -393,13 +393,6 @@ const getUserTreatments = async () => {
         playsInSilentModeIOS: true,
       });
 
-      // Si ya hay un audio grabado, lo eliminamos
-      if (recording) {
-        await recording.stopAndUnloadAsync();
-        setRecording(null);
-        setAudioUri(null); // Limpiar la URI del audio anterior
-      }
-
       const newRecording = new Audio.Recording();
       await newRecording.prepareToRecordAsync({
         android: {
@@ -443,11 +436,12 @@ const getUserTreatments = async () => {
       await recording.stopAndUnloadAsync();
       const uri = recording.getURI();
       setAudioUri(uri);
-      setRecording(null);
       setIsRecording(false);
-      console.log('Audio grabado en:', uri);
+      console.log('Audio grabado en URI:', uri);
+      console.log('Audio grabado en AUDIOURI:', audioUri);
       // Llamar a uploadAudio tras grabar
-      await uploadAudio();
+      
+      setRecording(null);
     } catch (err) {
       console.error('Error al detener la grabación', err);
       setIsRecording(false);
@@ -463,36 +457,44 @@ const getUserTreatments = async () => {
   };
 
   // Función para enviar el audio al backend
+  // Efecto secundario para subir el audio cuando audioUri cambie
+useEffect(() => {
   const uploadAudio = async () => {
-    if (!audioUri) {
-      Alert.alert('Error', 'No hay audio para enviar.');
-      return;
-    }
-    try {
-      const base64Audio = await fileToBase64(audioUri);
-      const response = await fetch('https://opills-api.deno.dev/api/process-voice', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer osix_opills_api_token',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          userId: userId,
-          audio: base64Audio,
-        }),
-      });
-      const result = await response.json();
-      console.log('Intent:', result.intent);
-      console.log('Respuesta:', result.responseText);
-      Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
+      console.log('Audio grabado en:', audioUri);
+      if (!audioUri) {
+          Alert.alert('Error', 'No hay audio para enviar.');
+          return;
+      }
+      try {
+          const base64Audio = await fileToBase64(audioUri);
+          const response = await fetch('https://opills-api.deno.dev/api/process-voice', {
+              method: 'POST',
+              headers: {
+                  'Authorization': 'Bearer osix_opills_api_token',
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  userId: userId,
+                  audio: base64Audio,
+              }),
+          });
+          const result = await response.json();
+          console.log('Intent:', result.intent);
+          console.log('Respuesta:', result.responseText);
+          Alert.alert('Respuesta', result.responseText || 'Sin respuesta');
 
-      // Limpiar la URI del audio después de enviarlo
-      setAudioUri(null);
-    } catch (error) {
-      console.error('Error al hacer la petición de voz:', error);
-      Alert.alert('Error', 'No se pudo contactar con la API');
-    }
+          // Limpiar la URI del audio después de enviarlo
+          setAudioUri(null);
+      } catch (error) {
+          console.error('Error al hacer la petición de voz:', error);
+          Alert.alert('Error', 'No se pudo contactar con la API');
+      }
   };
+
+  if (audioUri) {
+      uploadAudio(); // Llama a la función para subir el audio solo si audioUri está definido
+  }
+}, [audioUri]); // Este efecto se ejecutará cada vez que audioUri cambie
 
   // Función para enviar texto e imagen al backend
   const uploadTextRequest = async () => {
