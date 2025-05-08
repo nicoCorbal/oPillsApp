@@ -155,7 +155,10 @@ const COLORS = {
   border: '#e0e0e0',
 };
 
-const BORDER_RADIUS = 20;
+const BORDER_RADIUS = {
+  large: 20,
+  small: 14,
+};
 
 
 export default function MainScreen() {
@@ -755,7 +758,7 @@ const styles = StyleSheet.create({
   },
   medicationCard: {
     backgroundColor: COLORS.background,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     padding: 15,
     marginTop: 10,
     marginBottom: 10,
@@ -768,7 +771,7 @@ const styles = StyleSheet.create({
   },
   medicationItemSelected: {
     backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.small,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
@@ -785,12 +788,12 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginVertical: 4,
     paddingHorizontal: 8,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
   },
   medicationIcon: {
     width: 28,
     height: 28,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     backgroundColor: COLORS.background,
     justifyContent: 'center',
     alignItems: 'center',
@@ -823,7 +826,7 @@ const styles = StyleSheet.create({
   medicineImage: {
     width: '100%',
     height: 120,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
   },
   noImageContainer: {
     width: '100%',
@@ -857,7 +860,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'black',
     padding: 15,
     margin: 15,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     position: 'absolute',
     bottom: 0,
     left: 0,
@@ -868,7 +871,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: COLORS.primary,
     padding: 15,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     position: 'absolute',
     bottom: 40,
     left: 20,
@@ -890,7 +893,7 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     backgroundColor: '#333',
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     padding: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 5 },
@@ -909,7 +912,7 @@ const styles = StyleSheet.create({
   addOptionIcon: {
     width: 36,
     height: 36,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     backgroundColor: '#555',
     justifyContent: 'center',
     alignItems: 'center',
@@ -945,7 +948,7 @@ const styles = StyleSheet.create({
     height: 40,
     paddingHorizontal: 20,
     backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
   },
   micButtonCustom: {
     marginLeft: 10,
@@ -963,7 +966,7 @@ const styles = StyleSheet.create({
   },
   detailCard: {
     backgroundColor: 'black',
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     padding: 20,
     paddingBottom: 50,
   },
@@ -985,7 +988,7 @@ const styles = StyleSheet.create({
     bottom: 20,
     backgroundColor: 'transparent',
     padding: 8,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
   },
   closeDetailButton: {
     position: 'absolute',
@@ -1033,7 +1036,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
   },
   modalTabActive: {
     backgroundColor: '#f0f0f0',
@@ -1059,14 +1062,14 @@ const styles = StyleSheet.create({
   },
   modalInput: {
     backgroundColor: '#f0f0f0',
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     padding: 15,
     marginBottom: 15,
     fontSize: 16,
   },
   addMedicationButton: {
     backgroundColor: '#333',
-    borderRadius: BORDER_RADIUS,
+    borderRadius: BORDER_RADIUS.large,
     padding: 15,
     alignItems: 'center',
     marginTop: 10,
